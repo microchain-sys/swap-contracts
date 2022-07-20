@@ -16,11 +16,18 @@ pub struct PoolInfo {
     eth_reserve: u64,
     token_reserve: u64,
     lp_token_supply: u64,
+    twap_buffer_size: u64,
 }
 
 pub struct PreviewInfo {
     amount: u64,
     has_liquidity: bool,
+}
+
+pub struct Observation {
+    timestamp: u64,
+    price0CumulativeLast: u64,
+    price1CumulativeLast: u64,
 }
 
 abi Exchange {
@@ -52,4 +59,5 @@ abi Exchange {
     #[storage(read, write)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
     /// Get required amount of coins for a swap_with_maximum.
     #[storage(read, write)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
+    #[storage(read, write)]fn expand_twap_buffer(new_slots: u64);
 }
