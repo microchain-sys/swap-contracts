@@ -30,6 +30,7 @@ export async function initializePool(
   const deadline = await wallet.provider.getBlockNumber();
   await exchangeContract.submitMulticall(
     [
+      exchangeContract.prepareCall.expand_twap_buffer(4),
       exchangeContract.prepareCall.deposit({
         forward: [ethAmount, NativeAssetId],
       }),

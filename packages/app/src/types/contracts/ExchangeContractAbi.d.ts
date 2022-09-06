@@ -60,6 +60,7 @@ interface ExchangeContractAbiInterface extends Interface {
     swap_with_maximum: FunctionFragment;
     get_swap_with_minimum: FunctionFragment;
     get_swap_with_maximum: FunctionFragment;
+    expand_twap_buffer: FunctionFragment;
   };
 
   encodeFunctionData(functionFragment: 'get_balance', values: [ContractIdInput]): Uint8Array;
@@ -91,6 +92,7 @@ interface ExchangeContractAbiInterface extends Interface {
   ): Uint8Array;
   encodeFunctionData(functionFragment: 'get_swap_with_minimum', values: [BigNumberish]): Uint8Array;
   encodeFunctionData(functionFragment: 'get_swap_with_maximum', values: [BigNumberish]): Uint8Array;
+  encodeFunctionData(functionFragment: 'expand_twap_buffer', values: [BigNumberish]): Uint8Array;
 
   decodeFunctionData(functionFragment: 'get_balance', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_pool_info', data: BytesLike): DecodedValue;
@@ -106,6 +108,7 @@ interface ExchangeContractAbiInterface extends Interface {
   decodeFunctionData(functionFragment: 'swap_with_maximum', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_swap_with_minimum', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_swap_with_maximum', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'expand_twap_buffer', data: BytesLike): DecodedValue;
 }
 
 export class ExchangeContractAbi extends Contract {
@@ -156,6 +159,8 @@ export class ExchangeContractAbi extends Contract {
     get_swap_with_minimum(amount: BigNumberish, options?: ContractCallOptions): ContractCall;
 
     get_swap_with_maximum(amount: BigNumberish, options?: ContractCallOptions): ContractCall;
+
+    expand_twap_buffer(new_slots: BigNumberish, options?: ContractCallOptions): ContractCall;
   };
   submit: {
     get_balance(
@@ -214,6 +219,11 @@ export class ExchangeContractAbi extends Contract {
       amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PreviewInfoOutput>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<void>;
   };
   submitResult: {
     get_balance(
@@ -274,6 +284,11 @@ export class ExchangeContractAbi extends Contract {
       amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<TransactionResult<any>>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<TransactionResult<any>>;
   };
   dryRun: {
     get_balance(
@@ -332,6 +347,11 @@ export class ExchangeContractAbi extends Contract {
       amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PreviewInfoOutput>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<void>;
   };
   dryRunResult: {
     get_balance(
@@ -386,6 +406,11 @@ export class ExchangeContractAbi extends Contract {
 
     get_swap_with_maximum(
       amount: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<CallResult>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<CallResult>;
   };
@@ -446,6 +471,11 @@ export class ExchangeContractAbi extends Contract {
       amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PreviewInfoOutput>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<void>;
   };
   simulateResult: {
     get_balance(
@@ -500,6 +530,11 @@ export class ExchangeContractAbi extends Contract {
 
     get_swap_with_maximum(
       amount: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<CallResult>;
+
+    expand_twap_buffer(
+      new_slots: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<CallResult>;
   };
@@ -560,4 +595,9 @@ export class ExchangeContractAbi extends Contract {
     amount: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<PreviewInfoOutput>;
+
+  expand_twap_buffer(
+    new_slots: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<void>;
 }

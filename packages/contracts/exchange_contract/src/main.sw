@@ -15,7 +15,7 @@ use std::{
     u128::U128,
 };
 
-use exchange_abi::{Exchange, PoolInfo, PositionInfo, PreviewInfo, RemoveLiquidityInfo};
+use exchange_abi::{Exchange, Observation, PoolInfo, PositionInfo, PreviewInfo, RemoveLiquidityInfo};
 use swayswap_helpers::get_msg_sender_address_or_panic;
 
 ////////////////////////////////////////
@@ -39,30 +39,19 @@ const LIQUIDITY_MINER_FEE = 333;
 ////////////////////////////////////////
 
 storage {
+    token0_reserve: u64 = 0,
+    token1_reserve: u64 = 0,
     lp_token_supply: u64 = 0,
     deposits: StorageMap<(Address, ContractId), u64> = StorageMap {},
+    twap_buffer_size: u64 = 0,
+    twap_buffer_current_element: u64 = 0,
+    twap_buffer: StorageMap<u64, Observation> = StorageMap {},
 }
 
 ////////////////////////////////////////
 // Helper functions
 ////////////////////////////////////////
 
-/// Return token reserve balance
-#[storage(read)]fn get_current_reserve(token_id: b256) -> u64 {
-    get::<u64>(token_id)
-}
-
-/// Add amount to the token reserve
-#[storage(read, write)]fn add_reserve(token_id: b256, amount: u64) {
-    let value = get::<u64>(token_id);
-    store(token_id, value + amount);
-}
-
-/// Remove amount to the token reserve
-#[storage(read, write)]fn remove_reserve(token_id: b256, amount: u64) {
-    let value = get::<u64>(token_id);
-    store(token_id, value - amount);
-}
 // Calculate 0.3% fee
 fn calculate_amount_with_fee(amount: u64) -> u64 {
     let fee: u64 = (amount / LIQUIDITY_MINER_FEE);
@@ -77,6 +66,33 @@ fn mutiply_div(a: u64, b: u64, c: u64) -> u64 {
     match result_wrapped {
         Result::Ok(inner_value) => inner_value, _ => revert(0), 
     }
+}
+
+#[storage(read, write)]fn store_reserves(reserve0: u64, reserve1: u64, prev_reserve0: u64, prev_reserve1: u64) {
+    assert(storage.twap_buffer_size > 0);
+    let mut next_observation_slot = (storage.twap_buffer_current_element + 1) % storage.twap_buffer_size;
+
+    let mut last_observation = storage.twap_buffer.get(storage.twap_buffer_current_element);
+    if (last_observation.timestamp <= 1) {
+        next_observation_slot = storage.twap_buffer_current_element;
+        last_observation = Observation {
+            timestamp: height(),
+            price0CumulativeLast: 0,
+            price1CumulativeLast: 0,
+        };
+    }
+
+    let timeElapsed = height() - last_observation.timestamp;
+    if (timeElapsed != 0 && prev_reserve0 != 0 && prev_reserve1 != 0) {
+        storage.twap_buffer.insert(next_observation_slot, Observation {
+            timestamp: height(),
+            price0CumulativeLast: last_observation.price0CumulativeLast + ((prev_reserve1 / prev_reserve0) * timeElapsed),
+            price1CumulativeLast: last_observation.price1CumulativeLast + ((prev_reserve0 / prev_reserve1) * timeElapsed),
+        });
+    }
+
+    storage.token0_reserve = reserve0;
+    storage.token1_reserve = reserve1;
 }
 
 /// Pricing function for converting between ETH and Tokens.
@@ -120,15 +136,16 @@ impl Exchange for Contract {
 
     #[storage(read)]fn get_pool_info() -> PoolInfo {
         PoolInfo {
-            eth_reserve: get_current_reserve(ETH_ID),
-            token_reserve: get_current_reserve(TOKEN_ID),
+            eth_reserve: storage.token0_reserve,
+            token_reserve: storage.token1_reserve,
             lp_token_supply: storage.lp_token_supply,
+            twap_buffer_size: storage.twap_buffer_size,
         }
     }
 
     #[storage(read)]fn get_add_liquidity_token_amount(eth_amount: u64) -> u64 {
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
         let token_amount = mutiply_div(eth_amount, token_reserve, eth_reserve);
         token_amount
     }
@@ -174,8 +191,8 @@ impl Exchange for Contract {
         if total_liquidity > 0 {
             assert(min_liquidity > 0);
 
-            let eth_reserve = get_current_reserve(ETH_ID);
-            let token_reserve = get_current_reserve(TOKEN_ID);
+            let eth_reserve = storage.token0_reserve;
+            let token_reserve = storage.token1_reserve;
             let token_amount = mutiply_div(current_eth_amount, token_reserve, eth_reserve);
             let liquidity_minted = mutiply_div(current_eth_amount, total_liquidity, eth_reserve);
 
@@ -185,8 +202,8 @@ impl Exchange for Contract {
             // otherwise, return current user balances in contract
             if (current_token_amount >= token_amount) {
                 // Add fund to the reserves
-                add_reserve(TOKEN_ID, token_amount);
-                add_reserve(ETH_ID, current_eth_amount);
+                store_reserves(current_eth_amount + eth_reserve, token_amount + token_reserve, eth_reserve, token_reserve);
+
                 // Mint LP token
                 mint(liquidity_minted);
                 storage.lp_token_supply = total_liquidity + liquidity_minted;
@@ -211,8 +228,7 @@ impl Exchange for Contract {
             let initial_liquidity = current_eth_amount;
 
             // Add fund to the reserves
-            add_reserve(TOKEN_ID, current_token_amount);
-            add_reserve(ETH_ID, current_eth_amount);
+            store_reserves(current_eth_amount, current_token_amount, 0, 0);
 
             // Mint LP token
             mint(initial_liquidity);
@@ -241,8 +257,8 @@ impl Exchange for Contract {
         let total_liquidity = storage.lp_token_supply;
         assert(total_liquidity > 0);
 
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
         let eth_amount = mutiply_div(msg_amount(), eth_reserve, total_liquidity);
         let token_amount = mutiply_div(msg_amount(), token_reserve, total_liquidity);
 
@@ -252,8 +268,7 @@ impl Exchange for Contract {
         storage.lp_token_supply = total_liquidity - msg_amount();
 
         // Add fund to the reserves
-        remove_reserve(TOKEN_ID, token_amount);
-        remove_reserve(ETH_ID, eth_amount);
+        store_reserves(eth_reserve - eth_amount, token_reserve - token_amount, eth_reserve, token_reserve);
 
         // Send tokens back
         transfer_to_output(eth_amount, ~ContractId::from(ETH_ID), sender);
@@ -275,8 +290,8 @@ impl Exchange for Contract {
 
         let sender = get_msg_sender_address_or_panic();
 
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
 
         let mut bought = 0;
         if (asset_id == ETH_ID) {
@@ -285,16 +300,14 @@ impl Exchange for Contract {
             transfer_to_output(tokens_bought, ~ContractId::from(TOKEN_ID), sender);
             bought = tokens_bought;
             // Update reserve
-            add_reserve(ETH_ID, forwarded_amount);
-            remove_reserve(TOKEN_ID, tokens_bought);
+            store_reserves(eth_reserve + forwarded_amount, token_reserve - tokens_bought, eth_reserve, token_reserve);
         } else {
             let eth_bought = get_input_price(forwarded_amount, token_reserve, eth_reserve);
             assert(eth_bought >= min);
             transfer_to_output(eth_bought, ~ContractId::from(ETH_ID), sender);
             bought = eth_bought;
             // Update reserve
-            remove_reserve(ETH_ID, eth_bought);
-            add_reserve(TOKEN_ID, bought);
+            store_reserves(eth_reserve - eth_bought, token_reserve + bought, eth_reserve, token_reserve);
         };
         bought
     }
@@ -308,8 +321,8 @@ impl Exchange for Contract {
         assert(asset_id == ETH_ID || asset_id == TOKEN_ID);
 
         let sender = get_msg_sender_address_or_panic();
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
 
         let mut sold = 0;
         if (asset_id == ETH_ID) {
@@ -322,8 +335,7 @@ impl Exchange for Contract {
             transfer_to_output(amount, ~ContractId::from(TOKEN_ID), sender);
             sold = eth_sold;
             // Update reserve
-            add_reserve(ETH_ID, eth_sold);
-            remove_reserve(TOKEN_ID, amount);
+            store_reserves(eth_reserve + eth_sold, token_reserve - amount, eth_reserve, token_reserve);
         } else {
             let tokens_sold = get_output_price(amount, token_reserve, eth_reserve);
             assert(forwarded_amount >= tokens_sold);
@@ -334,15 +346,14 @@ impl Exchange for Contract {
             transfer_to_output(amount, ~ContractId::from(ETH_ID), sender);
             sold = tokens_sold;
             // Update reserve
-            remove_reserve(ETH_ID, amount);
-            add_reserve(TOKEN_ID, tokens_sold);
+            store_reserves(eth_reserve - amount, token_reserve + tokens_sold, eth_reserve, token_reserve);
         };
         sold
     }
 
     #[storage(read, write)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo {
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
         let mut sold = 0;
         let mut has_liquidity = true;
         if (msg_asset_id().into() == ETH_ID) {
@@ -359,8 +370,8 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo {
-        let eth_reserve = get_current_reserve(ETH_ID);
-        let token_reserve = get_current_reserve(TOKEN_ID);
+        let eth_reserve = storage.token0_reserve;
+        let token_reserve = storage.token1_reserve;
         let mut sold = 0;
         let mut has_liquidity = true;
         if (msg_asset_id().into() == ETH_ID) {
@@ -374,5 +385,24 @@ impl Exchange for Contract {
             amount: sold,
             has_liquidity: has_liquidity,
         }
+    }
+
+    #[storage(read, write)]fn expand_twap_buffer(new_slots: u64) {
+        let next_slot = storage.twap_buffer_size + 1;
+        let mut i = 0;
+
+        while i < new_slots {
+            // The goal here is to initialize these slots (write a value), without
+            // providing actual data. Observations will be aware that timestamp=1 means
+            // initialized, but not yet used
+            storage.twap_buffer.insert(next_slot, Observation {
+                timestamp: 1,
+                price0CumulativeLast: 1,
+                price1CumulativeLast: 1,
+            });
+            i += 1;
+        }
+
+        storage.twap_buffer_size += new_slots;
     }
 }

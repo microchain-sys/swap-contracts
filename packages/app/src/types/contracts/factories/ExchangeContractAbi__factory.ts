@@ -320,6 +320,26 @@ const _abi = [
       },
     ],
   },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'new_slots',
+        type: 'u64',
+        components: null,
+        typeArguments: null,
+      },
+    ],
+    name: 'expand_twap_buffer',
+    outputs: [
+      {
+        name: '',
+        type: '()',
+        components: [],
+        typeArguments: null,
+      },
+    ],
+  },
 ];
 
 export class ExchangeContractAbi__factory {
