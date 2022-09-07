@@ -3,18 +3,18 @@ library exchange_abi;
 use std::contract_id::ContractId;
 
 pub struct RemoveLiquidityInfo {
-    eth_amount: u64,
-    token_amount: u64,
+    token_0_amount: u64,
+    token_1_amount: u64,
 }
 
 pub struct PositionInfo {
-    eth_amount: u64,
-    token_amount: u64,
+    token_0_amount: u64,
+    token_1_amount: u64,
 }
 
 pub struct PoolInfo {
-    eth_reserve: u64,
-    token_reserve: u64,
+    token_0_reserve: u64,
+    token_1_reserve: u64,
     lp_token_supply: u64,
 }
 
@@ -32,7 +32,7 @@ abi Exchange {
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     /// Get information on the liquidity pool.
-    #[storage(read)]fn get_add_liquidity_token_amount(eth_amount: u64) -> u64;
+    #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64;
     ////////////////////
     // Actions
     ////////////////////
@@ -43,13 +43,13 @@ abi Exchange {
     /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
     #[storage(read, write)]fn add_liquidity(min_liquidity: u64, deadline: u64) -> u64;
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
-    #[storage(read, write)]fn remove_liquidity(min_eth: u64, min_tokens: u64, deadline: u64) -> RemoveLiquidityInfo;
+    #[storage(read, write)]fn remove_liquidity(min_token_0: u64, min_token_1: u64, deadline: u64) -> RemoveLiquidityInfo;
     /// Swap ETH <-> Tokens and tranfers to sender.
     #[storage(read, write)]fn swap_with_minimum(min: u64, deadline: u64) -> u64;
     /// Swap ETH <-> Tokens and tranfers to sender.
     #[storage(read, write)]fn swap_with_maximum(amount: u64, deadline: u64) -> u64;
     /// Get the minimum amount of coins that will be received for a swap_with_minimum.
-    #[storage(read, write)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
+    #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
     /// Get required amount of coins for a swap_with_maximum.
-    #[storage(read, write)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
+    #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
 }
