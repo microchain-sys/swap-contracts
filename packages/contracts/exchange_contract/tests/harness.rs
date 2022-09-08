@@ -196,8 +196,8 @@ async fn exchange_contract() {
         .call()
         .await
         .unwrap();
-    assert_eq!(result.value.eth_amount, native_amount_deposit);
-    assert_eq!(result.value.token_amount, token_amount_deposit);
+    assert_eq!(result.value.token_0_amount, native_amount_deposit);
+    assert_eq!(result.value.token_1_amount, token_amount_deposit);
 
     ////////////////////////////////////////////////////////
     // Setup the pool
@@ -389,15 +389,15 @@ async fn exchange_contract() {
         .call()
         .await
         .unwrap();
-    assert_eq!(response.value.eth_amount, remove_liquidity_eth_amount);
-    assert_eq!(response.value.token_amount, remove_liquidity_token_amount);
+    assert_eq!(response.value.token_0_amount, remove_liquidity_eth_amount);
+    assert_eq!(response.value.token_1_amount, remove_liquidity_token_amount);
 
     ////////////////////////////////////////////////////////
     // Check contract pool is zero
     ////////////////////////////////////////////////////////
 
     let pool_info = exchange_instance.get_pool_info().call().await.unwrap();
-    assert_eq!(pool_info.value.eth_reserve, 0);
-    assert_eq!(pool_info.value.token_reserve, 0);
+    assert_eq!(pool_info.value.token_0_reserve, 0);
+    assert_eq!(pool_info.value.token_1_reserve, 0);
     assert_eq!(pool_info.value.lp_token_supply, 0);
 }
