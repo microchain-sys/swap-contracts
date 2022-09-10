@@ -2,9 +2,9 @@ contract;
 
 use std::{
     address::*,
-    assert::require,
     context::{*, call_frames::*},
     contract_id::ContractId,
+    revert::require,
     storage::*,
     token::*,
 };

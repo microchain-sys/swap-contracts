@@ -25,7 +25,7 @@ use swayswap_helpers::get_msg_sender_address_or_panic;
 const TOKEN_0 = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
 /// Modify at compile time for different pool.
-const TOKEN_1 = 0xeb4f49ab76e1866ba27bdc9392373ad868d1efc88bbcd0eb67c8b066308a060d;
+const TOKEN_1 = 0xd4898d208e7b167ce5df321718560d9f6f5a8f37aa4e0bd390f2fdbc3bc3bdb5;
 
 /// Minimum ETH liquidity to open a pool.
 const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
