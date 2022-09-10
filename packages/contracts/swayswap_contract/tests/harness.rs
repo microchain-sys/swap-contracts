@@ -1,6 +1,8 @@
-use fuel_tx::{ContractId};
-use fuels::prelude::*;
-use fuels_abigen_macro::abigen;
+use fuels::{
+    core::tx::{ContractId},
+    prelude::*,
+    fuels_abigen::abigen,
+};
 use std::str::FromStr;
 
 ///////////////////////////////
@@ -18,13 +20,14 @@ async fn swayswap() {
         "out/debug/swayswap_contract.bin",
         &wallet,
         TxParameters::default(),
+        StorageConfiguration::new(None, None),
     )
     .await
     .unwrap();
-    let swayswap_instance = TestSwaySwap::new(
+    let swayswap_instance = TestSwaySwapBuilder::new(
         swayswap_contract_id.to_string(),
         wallet.clone(),
-    );
+    ).build();
 
     // Create fake contract ids
     let token_id = ContractId::from_str("0x562a05877b940cc69d7a9a71000a0cfdd79e93f783f198de893165278712a480").unwrap();
