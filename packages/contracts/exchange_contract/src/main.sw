@@ -25,7 +25,7 @@ use swayswap_helpers::get_msg_sender_address_or_panic;
 const TOKEN_0 = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
 /// Modify at compile time for different pool.
-const TOKEN_1 = 0xeb4f49ab76e1866ba27bdc9392373ad868d1efc88bbcd0eb67c8b066308a060d;
+const TOKEN_1 = 0xd4898d208e7b167ce5df321718560d9f6f5a8f37aa4e0bd390f2fdbc3bc3bdb5;
 
 /// Minimum ETH liquidity to open a pool.
 const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
@@ -174,21 +174,25 @@ impl Exchange for Contract {
             // otherwise, return current user balances in contract
             if (current_token_1_amount >= token_1_amount) {
                 // Add fund to the reserves
-                store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + token_1_amount);
+                // store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + token_1_amount);
 
-                // Mint LP token
+                // // Mint LP token
                 mint(liquidity_minted);
                 storage.lp_token_supply = total_liquidity + liquidity_minted;
 
-                transfer_to_output(liquidity_minted, contract_id(), sender);
+                // transfer_to_output(liquidity_minted, contract_id(), sender);
 
                 // If user sent more than the correct ratio, we deposit back the extra tokens
-                let token_extra = current_token_1_amount - token_1_amount;
-                if (token_extra > 0) {
-                    transfer_to_output(token_extra, ~ContractId::from(TOKEN_1), sender);
-                }
 
-                minted = liquidity_minted;
+
+                // ====== UNCOMMENT THE FOLLOWING LINE TO HIT GAS LIMITS ===
+
+                // let token_extra = current_token_1_amount - token_1_amount;
+                // if (token_extra > 0) {
+                //     transfer_to_output(token_extra, ~ContractId::from(TOKEN_1), sender);
+                // }
+
+                // minted = liquidity_minted;
             } else {
                 transfer_to_output(current_token_1_amount, ~ContractId::from(TOKEN_1), sender);
                 transfer_to_output(current_token_0_amount, ~ContractId::from(TOKEN_0), sender);
@@ -234,7 +238,7 @@ impl Exchange for Contract {
         let token_0_amount = mutiply_div(msg_amount(), token_0_reserve, total_liquidity);
         let token_1_amount = mutiply_div(msg_amount(), token_1_reserve, total_liquidity);
 
-        assert((token_0_amount >= min_token_0) && (token_1_amount >= min_token_1));
+        // assert((token_0_amount >= min_token_0) && (token_1_amount >= min_token_1));
 
         burn(msg_amount());
         storage.lp_token_supply = total_liquidity - msg_amount();
