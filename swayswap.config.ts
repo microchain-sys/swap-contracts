@@ -22,6 +22,11 @@ export default createConfig({
   },
   contracts: [
     {
+      name: 'COUNTER',
+      path: './packages/contracts/counter_contract',
+      options: getDeployOptions(),
+    },
+    {
       name: 'VITE_TOKEN_ID',
       path: './packages/contracts/token_contract',
       options: getDeployOptions(),
