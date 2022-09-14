@@ -45,6 +45,7 @@ abi Exchange {
     #[storage(read, write)]fn swap_with_minimum(asset_id: b256, min: u64, recipient: Identity) -> u64;
     /// Swap ETH <-> Tokens and tranfers to sender.
     #[storage(read, write)]fn swap_with_maximum(asset_id: b256, amount: u64, recipient: Identity) -> u64;
+    #[storage(read, write)]fn swap(asset_id: b256, recipient: Identity) -> u64;
     /// Get the minimum amount of coins that will be received for a swap_with_minimum.
     #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
     /// Get required amount of coins for a swap_with_maximum.

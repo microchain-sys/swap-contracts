@@ -247,8 +247,6 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn swap_with_minimum(asset_id: b256, min: u64, recipient: Identity) -> u64 {
-        let sender = get_msg_sender_address_or_panic();
-
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
@@ -259,13 +257,13 @@ impl Exchange for Contract {
         if (asset_id == TOKEN_0) {
             bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
             assert(bought >= min);
-            transfer_to_output(bought, ~ContractId::from(TOKEN_1), sender);
+            transfer(bought, ~ContractId::from(TOKEN_1), recipient);
             // Update reserve
             store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
         } else {
             bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
             assert(bought >= min);
-            transfer_to_output(bought, ~ContractId::from(TOKEN_0), sender);
+            transfer(bought, ~ContractId::from(TOKEN_0), recipient);
             // Update reserve
             store_reserves(token_0_reserve - bought, token_1_reserve + bought);
         };
@@ -273,7 +271,6 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn swap_with_maximum(asset_id: b256, amount: u64, recipient: Identity) -> u64 {
-        let sender = get_msg_sender_address_or_panic();
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
@@ -303,6 +300,28 @@ impl Exchange for Contract {
             store_reserves(token_0_reserve - amount, token_1_reserve + sold);
         };
         sold
+    }
+
+    #[storage(read, write)]fn swap(asset_id: b256, recipient: Identity) -> u64 {
+        let token_0_reserve = storage.token0_reserve;
+        let token_1_reserve = storage.token1_reserve;
+
+        let input_amount = get_input_amount(asset_id, token_0_reserve, token_1_reserve);
+        assert(input_amount > 0);
+
+        let mut bought = 0;
+        if (asset_id == TOKEN_0) {
+            bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
+            transfer(bought, ~ContractId::from(TOKEN_1), recipient);
+            // Update reserve
+            store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
+        } else {
+            bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
+            transfer(bought, ~ContractId::from(TOKEN_0), recipient);
+            // Update reserve
+            store_reserves(token_0_reserve - bought, token_1_reserve + bought);
+        };
+        bought
     }
 
     #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo {

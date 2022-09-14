@@ -222,13 +222,18 @@ async fn exchange_contract() {
     assert!(amount_expected.value.has_liquidity);
     // Swap using expected amount ETH -> TOKEN
     let response = exchange_instance
-        .swap_with_minimum(BASE_ASSET_ID.into(), amount_expected.value.amount, Identity::Address(address.into()))
+        .swap(BASE_ASSET_ID.into(), Identity::Address(address.into()))
+        // .swap_with_minimum(BASE_ASSET_ID.into(), amount_expected.value.amount, Identity::Address(address.into()))
         .call_params(CallParameters::new(Some(amount), None, None))
         .append_variable_outputs(1)
         .call()
         .await
         .unwrap();
     assert_eq!(response.value, amount_expected.value.amount);
+
+    let pool_info = exchange_instance.get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.token_0_reserve, 110);
+    assert_eq!(pool_info.value.token_1_reserve, 182);
 
     ////////////////////////////////////////////////////////
     // SWAP WITH MINIMUM (TOKEN -> ETH)
@@ -244,7 +249,8 @@ async fn exchange_contract() {
     assert!(amount_expected.value.has_liquidity);
     // Swap using expected amount TOKEN -> ETH
     let response = exchange_instance
-        .swap_with_minimum(token_asset_id.into(), amount_expected.value.amount, Identity::Address(address.into()))
+        .swap(token_asset_id.into(), Identity::Address(address.into()))
+        // .swap_with_minimum(token_asset_id.into(), amount_expected.value.amount, Identity::Address(address.into()))
         .call_params(CallParameters::new(
             Some(amount),
             Some(token_asset_id.clone()),
@@ -295,6 +301,7 @@ async fn exchange_contract() {
     assert!(amount_expected.value.has_liquidity);
     // Swap using expected amount ETH -> TOKEN
     let response = exchange_instance
+        // .swap(BASE_ASSET_ID.into(), Identity::Address(address.into()))
         .swap_with_maximum(BASE_ASSET_ID.into(), amount, Identity::Address(address.into()))
         .call_params(CallParameters::new(
             Some(amount_expected.value.amount),
@@ -321,6 +328,7 @@ async fn exchange_contract() {
     assert!(amount_expected.value.has_liquidity);
     // Swap using expected amount TOKEN -> ETH
     let response = exchange_instance
+        // .swap(token_asset_id.into(), Identity::Address(address.into()))
         .swap_with_maximum(token_asset_id.into(), amount, Identity::Address(address.into()))
         .call_params(CallParameters::new(
             Some(amount_expected.value.amount),
