@@ -1,7 +1,8 @@
-use fuel_tx::{AssetId, ContractId};
+use std::{vec, str::FromStr};
 use fuels::{
     prelude::*,
     fuels_abigen::abigen,
+    tx::{AssetId, ContractId, Bytes32, StorageSlot},
 };
 
 ///////////////////////////////
@@ -78,17 +79,6 @@ async fn exchange_contract() {
     // Setup contracts
     //////////////////////////////////////////
 
-    // Deploy contract and get ID
-    let exchange_contract_id = Contract::deploy(
-        "out/debug/exchange_contract.bin",
-        &wallet,
-        TxParameters::default(),
-        StorageConfiguration::new(None, None),
-    )
-    .await
-    .unwrap();
-    let exchange_instance = TestExchangeBuilder::new(exchange_contract_id.to_string(), wallet.clone()).build();
-
     let token_contract_id = Contract::deploy(
         "../token_contract/out/debug/token_contract.bin",
         &wallet,
@@ -97,6 +87,23 @@ async fn exchange_contract() {
     )
     .await
     .unwrap();
+
+    let key = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+    let value = token_contract_id.hash();
+    let storage_slot = StorageSlot::new(key, value);
+    let storage_vec = vec![storage_slot.clone()];
+
+    // Deploy contract and get ID
+    let exchange_contract_id = Contract::deploy(
+        "out/debug/exchange_contract.bin",
+        &wallet,
+        TxParameters::default(),
+        StorageConfiguration::with_manual_storage(Some(storage_vec)),
+    )
+    .await
+    .unwrap();
+
+    let exchange_instance = TestExchangeBuilder::new(exchange_contract_id.to_string(), wallet.clone()).build();
     let token_instance = TestTokenBuilder::new(token_contract_id.to_string(), wallet.clone()).build();
 
     // Native contract id

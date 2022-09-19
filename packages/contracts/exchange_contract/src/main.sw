@@ -22,10 +22,8 @@ use swayswap_helpers::get_msg_sender_address_or_panic;
 // Constants
 ////////////////////////////////////////
 
-const TOKEN_0 = 0x0000000000000000000000000000000000000000000000000000000000000000;
-
-/// Modify at compile time for different pool.
-const TOKEN_1 = 0xd4898d208e7b167ce5df321718560d9f6f5a8f37aa4e0bd390f2fdbc3bc3bdb5;
+const TOKEN_0_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000000;
+const TOKEN_1_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
 /// Minimum ETH liquidity to open a pool.
 const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
@@ -98,6 +96,13 @@ fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: u64)
     storage.token1_reserve = reserve1;
 }
 
+#[storage(read)]fn get_tokens() -> (b256, b256) {
+    (
+        get::<b256>(TOKEN_0_SLOT),
+        get::<b256>(TOKEN_1_SLOT),
+    )
+}
+
 // ////////////////////////////////////////
 // // ABI definitions
 // ////////////////////////////////////////
@@ -123,7 +128,8 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn deposit() {
-        assert(msg_asset_id().into() == TOKEN_0 || msg_asset_id().into() == TOKEN_1);
+        let (token0, token1) = get_tokens();
+        assert(msg_asset_id().into() == token0 || msg_asset_id().into() == token1);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -132,7 +138,8 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn withdraw(amount: u64, asset_id: ContractId) {
-        assert(asset_id.into() == TOKEN_0 || asset_id.into() == TOKEN_1);
+        let (token0, token1) = get_tokens();
+        assert(asset_id.into() == token0 || asset_id.into() == token1);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -146,16 +153,16 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn add_liquidity(min_liquidity: u64, deadline: u64) -> u64 {
+        let (token0, token1) = get_tokens();
         assert(msg_amount() == 0);
         assert(deadline > height());
-        assert(msg_asset_id().into() == TOKEN_0 || msg_asset_id().into() == TOKEN_1);
 
         let sender = get_msg_sender_address_or_panic();
 
         let total_liquidity = storage.lp_token_supply;
 
-        let current_token_0_amount = storage.deposits.get((sender, ~ContractId::from(TOKEN_0)));
-        let current_token_1_amount = storage.deposits.get((sender, ~ContractId::from(TOKEN_1)));
+        let current_token_0_amount = storage.deposits.get((sender, ~ContractId::from(token0)));
+        let current_token_1_amount = storage.deposits.get((sender, ~ContractId::from(token1)));
 
         assert(current_token_0_amount > 0);
 
@@ -185,13 +192,13 @@ impl Exchange for Contract {
                 // If user sent more than the correct ratio, we deposit back the extra tokens
                 let token_extra = current_token_1_amount - token_1_amount;
                 if (token_extra > 0) {
-                    transfer_to_output(token_extra, ~ContractId::from(TOKEN_1), sender);
+                    transfer_to_output(token_extra, ~ContractId::from(token1), sender);
                 }
 
                 minted = liquidity_minted;
             } else {
-                transfer_to_output(current_token_1_amount, ~ContractId::from(TOKEN_1), sender);
-                transfer_to_output(current_token_0_amount, ~ContractId::from(TOKEN_0), sender);
+                transfer_to_output(current_token_1_amount, ~ContractId::from(token1), sender);
+                transfer_to_output(current_token_0_amount, ~ContractId::from(token0), sender);
                 minted = 0;
             }
         } else {
@@ -212,13 +219,14 @@ impl Exchange for Contract {
         };
 
         // Clear user contract balances after finishing add/create liquidity
-        storage.deposits.insert((sender, ~ContractId::from(TOKEN_1)), 0);
-        storage.deposits.insert((sender, ~ContractId::from(TOKEN_0)), 0);
+        storage.deposits.insert((sender, ~ContractId::from(token1)), 0);
+        storage.deposits.insert((sender, ~ContractId::from(token0)), 0);
 
         minted
     }
 
     #[storage(read, write)]fn remove_liquidity(min_token_0: u64, min_token_1: u64, deadline: u64) -> RemoveLiquidityInfo {
+        let (token0, token1) = get_tokens();
         assert(msg_amount() > 0);
         assert(msg_asset_id().into() == (contract_id()).into());
         assert(deadline > height());
@@ -243,8 +251,8 @@ impl Exchange for Contract {
         store_reserves(token_0_reserve - token_0_amount, token_1_reserve - token_1_amount);
 
         // Send tokens back
-        transfer_to_output(token_0_amount, ~ContractId::from(TOKEN_0), sender);
-        transfer_to_output(token_1_amount, ~ContractId::from(TOKEN_1), sender);
+        transfer_to_output(token_0_amount, ~ContractId::from(token0), sender);
+        transfer_to_output(token_1_amount, ~ContractId::from(token1), sender);
 
         RemoveLiquidityInfo {
             token_0_amount: token_0_amount,
@@ -253,12 +261,13 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn swap_with_minimum(min: u64, deadline: u64) -> u64 {
+        let (token0, token1) = get_tokens();
         let asset_id = msg_asset_id().into();
         let input_amount = msg_amount();
 
         assert(deadline >= height());
         assert(input_amount > 0 && min > 0);
-        assert(asset_id == TOKEN_0 || asset_id == TOKEN_1);
+        assert(asset_id == token0 || asset_id == token1);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -266,16 +275,16 @@ impl Exchange for Contract {
         let token_1_reserve = storage.token1_reserve;
 
         let mut bought = 0;
-        if (asset_id == TOKEN_0) {
+        if (asset_id == token0) {
             bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
             assert(bought >= min);
-            transfer_to_output(bought, ~ContractId::from(TOKEN_1), sender);
+            transfer_to_output(bought, ~ContractId::from(token1), sender);
             // Update reserve
             store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
         } else {
             bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
             assert(bought >= min);
-            transfer_to_output(bought, ~ContractId::from(TOKEN_0), sender);
+            transfer_to_output(bought, ~ContractId::from(token0), sender);
             // Update reserve
             store_reserves(token_0_reserve - bought, token_1_reserve + bought);
         };
@@ -283,26 +292,27 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn swap_with_maximum(amount: u64, deadline: u64) -> u64 {
+        let (token0, token1) = get_tokens();
         let asset_id = msg_asset_id().into();
         let input_amount = msg_amount();
 
         assert(deadline >= height());
         assert(amount > 0 && input_amount > 0);
-        assert(asset_id == TOKEN_0 || asset_id == TOKEN_1);
+        assert(asset_id == token0 || asset_id == token1);
 
         let sender = get_msg_sender_address_or_panic();
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
         let mut sold = 0;
-        if (asset_id == TOKEN_0) {
+        if (asset_id == token0) {
             sold = get_output_price(amount, token_0_reserve, token_1_reserve);
             assert(input_amount >= sold);
             let refund = input_amount - sold;
             if refund > 0 {
-                transfer_to_output(refund, ~ContractId::from(TOKEN_0), sender);
+                transfer_to_output(refund, ~ContractId::from(token0), sender);
             };
-            transfer_to_output(amount, ~ContractId::from(TOKEN_1), sender);
+            transfer_to_output(amount, ~ContractId::from(token1), sender);
             // Update reserve
             store_reserves(token_0_reserve + sold, token_1_reserve - amount);
         } else {
@@ -310,21 +320,30 @@ impl Exchange for Contract {
             assert(input_amount >= sold);
             let refund = input_amount - sold;
             if refund > 0 {
-                transfer_to_output(refund, ~ContractId::from(TOKEN_1), sender);
+                transfer_to_output(refund, ~ContractId::from(token1), sender);
             };
-            transfer_to_output(amount, ~ContractId::from(TOKEN_0), sender);
+            transfer_to_output(amount, ~ContractId::from(token0), sender);
             // Update reserve
             store_reserves(token_0_reserve - amount, token_1_reserve + sold);
         };
         sold
     }
 
+    // Getters
+
+    #[storage(read)]fn get_tokens() -> (b256, b256) {
+        get_tokens()
+    }
+
+
     #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo {
+        let (token0,) = get_tokens();
+
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
         let mut sold = 0;
         let mut has_liquidity = true;
-        if (msg_asset_id().into() == TOKEN_0) {
+        if (msg_asset_id().into() == token0) {
             sold = get_input_price(amount, token_0_reserve, token_1_reserve);
             has_liquidity = sold < token_1_reserve;
         } else {
@@ -338,11 +357,12 @@ impl Exchange for Contract {
     }
 
     #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo {
+        let (token0, token1) = get_tokens();
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
         let mut sold = 0;
         let mut has_liquidity = true;
-        if (msg_asset_id().into() == TOKEN_0) {
+        if (msg_asset_id().into() == token0) {
             sold = get_output_price(amount, token_0_reserve, token_1_reserve);
             has_liquidity = sold < token_0_reserve;
         } else {
