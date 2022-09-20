@@ -50,4 +50,6 @@ abi Exchange {
     #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
     /// Get required amount of coins for a swap_with_maximum.
     #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
+    /// Get the two tokens held in the pool
+    #[storage(read)]fn get_tokens() -> (b256, b256);
 }
