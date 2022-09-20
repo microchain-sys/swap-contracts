@@ -14,10 +14,12 @@ export async function initializeTokenContract(
     value: tokenContract.wallet!.address.toB256(),
   };
 
-  try {
-    process.stdout.write('Initialize Token Contract\n');
-    await tokenContract.functions.initialize(mintAmount, address).txParams(overrides).call();
-  } catch (err) {
+  const { value: owner } = await tokenContract.functions.get_owner().get()
+  if (owner.value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
     process.stdout.write('Token Contract already initialized\n');
+    return;
   }
+
+  process.stdout.write('Initialize Token Contract\n');
+  await tokenContract.functions.initialize(mintAmount, address).txParams(overrides).call();
 }

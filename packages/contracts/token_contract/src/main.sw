@@ -96,4 +96,8 @@ impl Token for Contract {
     fn get_token_balance(asset_id: ContractId) -> u64 {
         balance_of(asset_id, contract_id())
     }
+
+    #[storage(read)]fn get_owner() -> Address {
+        storage.owner
+    }
 }

@@ -11,8 +11,8 @@ export async function initializePool(
   overrides: { gasPrice: BigNumberish }
 ) {
   const wallet = tokenContract.wallet!;
-  const tokenAmount = bn(TOKEN_AMOUNT || '0x44364C5BB0000');
-  const ethAmount = bn(ETH_AMOUNT || '0xE8F2727500');
+  const tokenAmount = bn(TOKEN_AMOUNT || '0x44364C5BB');
+  const ethAmount = bn(ETH_AMOUNT || '0xE8F272');
   const address = {
     value: wallet.address.toB256(),
   };
@@ -29,8 +29,12 @@ export async function initializePool(
     })
     .call();
 
+  console.log('Balances');
+  console.log('ETH', await wallet.getBalance(NativeAssetId));
+  console.log('Token', await wallet.getBalance(tokenContract.id.toB256()));
+
   process.stdout.write('Initialize pool\n');
-  const deadline = await wallet.provider.getBlockNumber();
+  const deadline = (await wallet.provider.getBlockNumber()).add(1000);
   await exchangeContract
     .multiCall([
       exchangeContract.functions.deposit().callParams({
@@ -39,7 +43,7 @@ export async function initializePool(
       exchangeContract.functions.deposit().callParams({
         forward: [tokenAmount, tokenContract.id.toB256()],
       }),
-      exchangeContract.functions.add_liquidity(1, bn(1000).add(deadline)),
+      exchangeContract.functions.add_liquidity(1, deadline),
     ])
     .txParams({
       ...overrides,

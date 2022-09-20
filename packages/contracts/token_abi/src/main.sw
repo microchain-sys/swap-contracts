@@ -23,4 +23,6 @@ abi Token {
     #[storage(read)]fn transfer_token_to_output(coins: u64, asset_id: ContractId, address: Address);
     // Method called from address to mint coins
     #[storage(read, write)]fn mint();
+    // Return the contract owner
+    #[storage(read)]fn get_owner() -> Address;
 }
