@@ -2,14 +2,13 @@ contract;
 
 use std::{
     address::*,
-    assert::assert,
     block::*,
     chain::auth::*,
     context::{*, call_frames::*},
     contract_id::ContractId,
     hash::*,
     result::*,
-    revert::revert,
+    revert::{revert, require},
     storage::*,
     token::*,
     u128::U128,
@@ -29,6 +28,17 @@ const TOKEN_1_SLOT = 0x000000000000000000000000000000000000000000000000000000000
 const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
 // Liquidity miner fee apply to all swaps
 const LIQUIDITY_MINER_FEE = 333;
+
+enum Error {
+    ReservesEmpty: (),
+    UnsupportedToken: (),
+    NoTokensProvided: (),
+    InsufficentOutput: (),
+    InvalidInput: (),
+    ExceedsBalance: (),
+    InsufficentInput: (),
+    DeadlineElapsed: (),
+}
 
 ////////////////////////////////////////
 // Storage declarations
@@ -63,7 +73,7 @@ fn mutiply_div(a: u64, b: u64, c: u64) -> u64 {
 
 /// Pricing function for converting between tokens.
 fn get_input_price(input_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
-    assert(input_reserve > 0 && output_reserve > 0);
+    require(input_reserve > 0 && output_reserve > 0, Error::ReservesEmpty);
     let input_amount_with_fee: u64 = calculate_amount_with_fee(input_amount);
     let numerator = ~U128::from(0, input_amount_with_fee) * ~U128::from(0, output_reserve);
     let denominator = ~U128::from(0, input_reserve) + ~U128::from(0, input_amount_with_fee);
@@ -76,7 +86,7 @@ fn get_input_price(input_amount: u64, input_reserve: u64, output_reserve: u64) -
 
 /// Pricing function for converting between tokens.
 fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
-    assert(input_reserve > 0 && output_reserve > 0);
+    require(input_reserve > 0 && output_reserve > 0, Error::ReservesEmpty);
     let numerator = ~U128::from(0, input_reserve) * ~U128::from(0, output_amount);
     let denominator = ~U128::from(0, calculate_amount_with_fee(output_reserve - output_amount));
     let result_wrapped = (numerator / denominator).as_u64();
@@ -129,7 +139,7 @@ impl Exchange for Contract {
 
     #[storage(read, write)]fn deposit() {
         let (token0, token1) = get_tokens();
-        assert(msg_asset_id().into() == token0 || msg_asset_id().into() == token1);
+        require(msg_asset_id().into() == token0 || msg_asset_id().into() == token1, Error::UnsupportedToken);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -139,12 +149,12 @@ impl Exchange for Contract {
 
     #[storage(read, write)]fn withdraw(amount: u64, asset_id: ContractId) {
         let (token0, token1) = get_tokens();
-        assert(asset_id.into() == token0 || asset_id.into() == token1);
+        require(asset_id.into() == token0 || asset_id.into() == token1, Error::UnsupportedToken);
 
         let sender = get_msg_sender_address_or_panic();
 
         let deposited_amount = storage.deposits.get((sender, asset_id));
-        assert(deposited_amount >= amount);
+        require(deposited_amount >= amount, Error::ExceedsBalance);
 
         let new_amount = deposited_amount - amount;
         storage.deposits.insert((sender, asset_id), new_amount);
@@ -154,8 +164,8 @@ impl Exchange for Contract {
 
     #[storage(read, write)]fn add_liquidity(min_liquidity: u64, deadline: u64) -> u64 {
         let (token0, token1) = get_tokens();
-        assert(msg_amount() == 0);
-        assert(deadline > height());
+        require(msg_amount() == 0, Error::NoTokensProvided);
+        require(deadline > height(), Error::DeadlineElapsed);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -164,18 +174,18 @@ impl Exchange for Contract {
         let current_token_0_amount = storage.deposits.get((sender, ~ContractId::from(token0)));
         let current_token_1_amount = storage.deposits.get((sender, ~ContractId::from(token1)));
 
-        assert(current_token_0_amount > 0);
+        require(current_token_0_amount > 0, Error::NoTokensProvided);
 
         let mut minted: u64 = 0;
         if total_liquidity > 0 {
-            assert(min_liquidity > 0);
+            require(min_liquidity > 0, Error::InvalidInput);
 
             let token_0_reserve = storage.token0_reserve;
             let token_1_reserve = storage.token1_reserve;
             let token_1_amount = mutiply_div(current_token_0_amount, token_1_reserve, token_0_reserve);
             let liquidity_minted = mutiply_div(current_token_0_amount, total_liquidity, token_0_reserve);
 
-            assert(liquidity_minted >= min_liquidity);
+            require(liquidity_minted >= min_liquidity, Error::InsufficentOutput);
 
             // if token ratio is correct, proceed with liquidity operation
             // otherwise, return current user balances in contract
@@ -202,7 +212,7 @@ impl Exchange for Contract {
                 minted = 0;
             }
         } else {
-            assert(current_token_0_amount > MINIMUM_LIQUIDITY);
+            require(current_token_0_amount > MINIMUM_LIQUIDITY, Error::InsufficentInput);
 
             let initial_liquidity = current_token_0_amount;
 
@@ -227,22 +237,23 @@ impl Exchange for Contract {
 
     #[storage(read, write)]fn remove_liquidity(min_token_0: u64, min_token_1: u64, deadline: u64) -> RemoveLiquidityInfo {
         let (token0, token1) = get_tokens();
-        assert(msg_amount() > 0);
-        assert(msg_asset_id().into() == (contract_id()).into());
-        assert(deadline > height());
-        assert(min_token_0 > 0 && min_token_1 > 0);
+        require(msg_amount() > 0, Error::NoTokensProvided);
+        require(msg_asset_id().into() == (contract_id()).into(), Error::UnsupportedToken);
+        require(deadline > height(), Error::DeadlineElapsed);
+        require(min_token_0 > 0 && min_token_1 > 0, Error::InvalidInput);
 
         let sender = get_msg_sender_address_or_panic();
 
         let total_liquidity = storage.lp_token_supply;
-        assert(total_liquidity > 0);
+        // This check is unnecessary, since we know they sent LP tokens, right?
+        // assert(total_liquidity > 0);
 
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
         let token_0_amount = mutiply_div(msg_amount(), token_0_reserve, total_liquidity);
         let token_1_amount = mutiply_div(msg_amount(), token_1_reserve, total_liquidity);
 
-        assert((token_0_amount >= min_token_0) && (token_1_amount >= min_token_1));
+        require((token_0_amount >= min_token_0) && (token_1_amount >= min_token_1), Error::InsufficentOutput);
 
         burn(msg_amount());
         storage.lp_token_supply = total_liquidity - msg_amount();
@@ -265,9 +276,10 @@ impl Exchange for Contract {
         let asset_id = msg_asset_id().into();
         let input_amount = msg_amount();
 
-        assert(deadline >= height());
-        assert(input_amount > 0 && min > 0);
-        assert(asset_id == token0 || asset_id == token1);
+        require(deadline >= height(), Error::DeadlineElapsed);
+        require(min > 0, Error::InvalidInput);
+        require(input_amount > 0, Error::NoTokensProvided);
+        require(asset_id == token0 || asset_id == token1, Error::UnsupportedToken);
 
         let sender = get_msg_sender_address_or_panic();
 
@@ -277,13 +289,13 @@ impl Exchange for Contract {
         let mut bought = 0;
         if (asset_id == token0) {
             bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
-            assert(bought >= min);
+            require(bought >= min, Error::InsufficentOutput);
             transfer_to_output(bought, ~ContractId::from(token1), sender);
             // Update reserve
             store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
         } else {
             bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
-            assert(bought >= min);
+            require(bought >= min, Error::InsufficentOutput);
             transfer_to_output(bought, ~ContractId::from(token0), sender);
             // Update reserve
             store_reserves(token_0_reserve - bought, token_1_reserve + bought);
@@ -296,9 +308,10 @@ impl Exchange for Contract {
         let asset_id = msg_asset_id().into();
         let input_amount = msg_amount();
 
-        assert(deadline >= height());
-        assert(amount > 0 && input_amount > 0);
-        assert(asset_id == token0 || asset_id == token1);
+        require(deadline >= height(), Error::DeadlineElapsed);
+        require(amount > 0, Error::InvalidInput);
+        require(input_amount > 0, Error::NoTokensProvided);
+        require(asset_id == token0 || asset_id == token1, Error::UnsupportedToken);
 
         let sender = get_msg_sender_address_or_panic();
         let token_0_reserve = storage.token0_reserve;
@@ -307,7 +320,7 @@ impl Exchange for Contract {
         let mut sold = 0;
         if (asset_id == token0) {
             sold = get_output_price(amount, token_0_reserve, token_1_reserve);
-            assert(input_amount >= sold);
+            require(input_amount >= sold, Error::InsufficentOutput);
             let refund = input_amount - sold;
             if refund > 0 {
                 transfer_to_output(refund, ~ContractId::from(token0), sender);
@@ -317,7 +330,7 @@ impl Exchange for Contract {
             store_reserves(token_0_reserve + sold, token_1_reserve - amount);
         } else {
             sold = get_output_price(amount, token_1_reserve, token_0_reserve);
-            assert(input_amount >= sold);
+            require(input_amount >= sold, Error::InsufficentOutput);
             let refund = input_amount - sold;
             if refund > 0 {
                 transfer_to_output(refund, ~ContractId::from(token1), sender);
