@@ -11,7 +11,7 @@ import type {
   BigNumberish,
   InvokeFunction,
   BN,
-} from 'fuels';
+} from "fuels";
 
 export type ContractIdInput = { value: string };
 
@@ -24,16 +24,22 @@ interface SwayswapContractAbiInterface extends Interface {
   };
 
   encodeFunctionData(
-    functionFragment: 'add_exchange_contract',
+    functionFragment: "add_exchange_contract",
     values: [ContractIdInput, ContractIdInput]
   ): Uint8Array;
   encodeFunctionData(
-    functionFragment: 'get_exchange_contract',
+    functionFragment: "get_exchange_contract",
     values: [ContractIdInput]
   ): Uint8Array;
 
-  decodeFunctionData(functionFragment: 'add_exchange_contract', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'get_exchange_contract', data: BytesLike): DecodedValue;
+  decodeFunctionData(
+    functionFragment: "add_exchange_contract",
+    data: BytesLike
+  ): DecodedValue;
+  decodeFunctionData(
+    functionFragment: "get_exchange_contract",
+    data: BytesLike
+  ): DecodedValue;
 }
 
 export class SwayswapContractAbi extends Contract {
@@ -44,6 +50,9 @@ export class SwayswapContractAbi extends Contract {
       void
     >;
 
-    get_exchange_contract: InvokeFunction<[token_id: ContractIdInput], ContractIdOutput>;
+    get_exchange_contract: InvokeFunction<
+      [token_id: ContractIdInput],
+      ContractIdOutput
+    >;
   };
 }

@@ -51,4 +51,23 @@ export async function initializePool(
       gasLimit: 100_000_000,
     })
     .call();
+
+  console.log('Pool initialized, running a test swap');
+
+  // Make a test swap
+
+  const chainInfo = await wallet.provider.getChain()
+
+  const tx = await exchangeContract.functions
+    .swap_with_minimum(1, chainInfo.latestBlock.height.toNumber() + 100)
+    .callParams({
+      forward: [100, NativeAssetId],
+    })
+    .txParams({
+      gasPrice: 1,
+      variableOutputs: 2,
+      gasLimit: 100_000_000,
+    })
+    .call();
+  console.log('swapped', tx);
 }

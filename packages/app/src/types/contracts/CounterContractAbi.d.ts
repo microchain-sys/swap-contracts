@@ -11,7 +11,7 @@ import type {
   BigNumberish,
   InvokeFunction,
   BN,
-} from 'fuels';
+} from "fuels";
 
 interface CounterContractAbiInterface extends Interface {
   functions: {
@@ -20,13 +20,31 @@ interface CounterContractAbiInterface extends Interface {
     counter: FunctionFragment;
   };
 
-  encodeFunctionData(functionFragment: 'increment', values?: undefined): Uint8Array;
-  encodeFunctionData(functionFragment: 'increase', values: [BigNumberish]): Uint8Array;
-  encodeFunctionData(functionFragment: 'counter', values?: undefined): Uint8Array;
+  encodeFunctionData(
+    functionFragment: "increment",
+    values?: undefined
+  ): Uint8Array;
+  encodeFunctionData(
+    functionFragment: "increase",
+    values: [BigNumberish]
+  ): Uint8Array;
+  encodeFunctionData(
+    functionFragment: "counter",
+    values?: undefined
+  ): Uint8Array;
 
-  decodeFunctionData(functionFragment: 'increment', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'increase', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'counter', data: BytesLike): DecodedValue;
+  decodeFunctionData(
+    functionFragment: "increment",
+    data: BytesLike
+  ): DecodedValue;
+  decodeFunctionData(
+    functionFragment: "increase",
+    data: BytesLike
+  ): DecodedValue;
+  decodeFunctionData(
+    functionFragment: "counter",
+    data: BytesLike
+  ): DecodedValue;
 }
 
 export class CounterContractAbi extends Contract {
