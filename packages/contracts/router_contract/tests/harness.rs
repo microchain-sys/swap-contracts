@@ -246,15 +246,13 @@ async fn exchange_contract() {
     let swap_data = SwapData {
         exact_amount: amount,
         slippage_amount: amount_expected.value.amount,
-        exact_output: false,
-        input: BASE_ASSET_ID.into(),
         // output: b256,
         pool: exchange_casted_again,
     };
 
     // Swap using expected amount ETH -> TOKEN
     let response = router_instance
-        .simple_swap(swap_data)
+        .swap_exact_input(swap_data)
         .call_params(CallParameters::new(Some(amount), None, None))
         .append_variable_outputs(1)
         .set_contracts(&[exchange_contract_id.clone()])
@@ -283,15 +281,13 @@ async fn exchange_contract() {
     let swap_data = SwapData {
         exact_amount: amount,
         slippage_amount: amount_expected.value.amount,
-        exact_output: false,
-        input: token_asset_id.into(),
         // output: b256,
         pool: exchange_casted_again,
     };
 
     // Swap using expected amount ETH -> TOKEN
     let response = router_instance
-        .simple_swap(swap_data)
+        .swap_exact_input(swap_data)
         .call_params(CallParameters::new(Some(amount), Some(token_asset_id.clone()), None))
         .append_variable_outputs(1)
         .set_contracts(&[exchange_contract_id.clone()])
@@ -341,15 +337,13 @@ async fn exchange_contract() {
     let swap_data = SwapData {
         exact_amount: amount,
         slippage_amount: amount_expected.value.amount,
-        exact_output: true,
-        input: BASE_ASSET_ID.into(),
         // output: b256,
         pool: exchange_casted_again,
     };
 
     // Swap using expected amount ETH -> TOKEN
     let response = router_instance
-        .simple_swap(swap_data)
+        .swap_exact_output(swap_data)
         .call_params(CallParameters::new(Some(amount_expected.value.amount), Some(BASE_ASSET_ID.clone()), None))
         .append_variable_outputs(1)
         .set_contracts(&[exchange_contract_id.clone()])
@@ -373,15 +367,13 @@ async fn exchange_contract() {
     let swap_data = SwapData {
         exact_amount: amount,
         slippage_amount: amount_expected.value.amount,
-        exact_output: true,
-        input: token_asset_id.into(),
         // output: b256,
         pool: exchange_casted_again,
     };
 
     // Swap using expected amount ETH -> TOKEN
     let response = router_instance
-        .simple_swap(swap_data)
+        .swap_exact_output(swap_data)
         .call_params(CallParameters::new(Some(amount_expected.value.amount), Some(token_asset_id.clone()), None))
         .append_variable_outputs(2)
         .set_contracts(&[exchange_contract_id.clone()])
