@@ -17,7 +17,12 @@ use std::{
 };
 
 use exchange_abi::{Exchange, PoolInfo, PositionInfo, PreviewInfo, RemoveLiquidityInfo};
-use swayswap_helpers::get_msg_sender_address_or_panic;
+use microchain_helpers::{
+    get_msg_sender_address_or_panic,
+    get_input_price,
+    get_output_price,
+    mutiply_div,
+};
 
 ////////////////////////////////////////
 // Constants
@@ -28,8 +33,6 @@ const TOKEN_1_SLOT = 0x000000000000000000000000000000000000000000000000000000000
 
 /// Minimum ETH liquidity to open a pool.
 const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
-// Liquidity miner fee apply to all swaps
-const LIQUIDITY_MINER_FEE = 333;
 
 ////////////////////////////////////////
 // Storage declarations
@@ -44,66 +47,6 @@ storage {
 ////////////////////////////////////////
 // Helper functions
 ////////////////////////////////////////
-
-// Calculate 0.3% fee
-fn calculate_amount_with_fee(amount: u64) -> u64 {
-    let fee: u64 = (amount / LIQUIDITY_MINER_FEE);
-    amount - fee
-}
-
-fn mutiply_div(a: u64, b: u64, c: u64) -> u64 {
-    let calculation = (~U128::from(0, a) * ~U128::from(0, b));
-    let result_wrapped = (calculation / ~U128::from(0, c)).as_u64();
-
-    // TODO remove workaround once https://github.com/FuelLabs/sway/pull/1671 lands.
-    match result_wrapped {
-        Result::Ok(inner_value) => inner_value, _ => revert(0), 
-    }
-}
-
-/// Pricing function for converting between tokens.
-fn get_input_price(input_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
-    assert(input_reserve > 0 && output_reserve > 0);
-    let input_amount_with_fee: u64 = calculate_amount_with_fee(input_amount);
-    let numerator = ~U128::from(0, input_amount_with_fee) * ~U128::from(0, output_reserve);
-    let denominator = ~U128::from(0, input_reserve) + ~U128::from(0, input_amount_with_fee);
-    let result_wrapped = (numerator / denominator).as_u64();
-    // TODO remove workaround once https://github.com/FuelLabs/sway/pull/1671 lands.
-    match result_wrapped {
-        Result::Ok(inner_value) => inner_value, _ => revert(0), 
-    }
-}
-
-/// Pricing function for converting between tokens.
-fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
-    assert(input_reserve > 0 && output_reserve > 0);
-    let numerator = ~U128::from(0, input_reserve) * ~U128::from(0, output_amount);
-    let denominator = ~U128::from(0, calculate_amount_with_fee(output_reserve - output_amount));
-    let result_wrapped = (numerator / denominator).as_u64();
-    if denominator > numerator {
-        // Emulate Infinity Value
-        ~u64::max()
-    } else {
-        // TODO remove workaround once https://github.com/FuelLabs/sway/pull/1671 lands.
-        match result_wrapped {
-            Result::Ok(inner_value) => inner_value + 1, _ => revert(0), 
-        }
-    }
-}
-
-/// Transfer `amount` coins of the current contract's `asset_id` and send them
-/// to `to` by calling either force_transfer_to_contract() or
-/// transfer_to_output(), depending on the type of `Identity`.
-fn transfer(amount: u64, asset_id: ContractId, to: Identity) {
-    match to {
-        Identity::Address(addr) => {
-            transfer_to_output(amount, asset_id, addr);
-        },
-        Identity::ContractId(id) => {
-            force_transfer_to_contract(amount, asset_id, id);
-        },
-    }
-}
 
 #[storage(read)]fn get_input_amount(asset_id: b256, token_0_reserve: u64, token_1_reserve: u64) -> u64 {
     let (token0, token1) = get_tokens();
