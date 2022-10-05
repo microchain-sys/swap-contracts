@@ -9,6 +9,7 @@ use std::{
     contract_id::ContractId,
     hash::*,
     identity::Identity,
+    math::*,
     result::*,
     revert::revert,
     storage::*,
@@ -32,7 +33,7 @@ const TOKEN_0_SLOT = 0x000000000000000000000000000000000000000000000000000000000
 const TOKEN_1_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
 /// Minimum ETH liquidity to open a pool.
-const MINIMUM_LIQUIDITY = 1; //A more realistic value would be 1000000000;
+const MINIMUM_LIQUIDITY = 1000;
 
 ////////////////////////////////////////
 // Storage declarations
@@ -140,16 +141,14 @@ impl Exchange for Contract {
                 minted = 0;
             }
         } else {
-            assert(current_token_0_amount > MINIMUM_LIQUIDITY);
-
-            let initial_liquidity = current_token_0_amount;
+            let initial_liquidity = (current_token_0_amount * current_token_1_amount).sqrt() - MINIMUM_LIQUIDITY;
 
             // Add fund to the reserves
             store_reserves(current_token_0_amount, current_token_1_amount);
 
             // Mint LP token
             mint(initial_liquidity);
-            storage.lp_token_supply = initial_liquidity;
+            storage.lp_token_supply = initial_liquidity + MINIMUM_LIQUIDITY;
 
             transfer(initial_liquidity, contract_id(), recipient);
 
