@@ -34,6 +34,12 @@ abi Exchange {
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64;
+    /// Get the minimum amount of coins that will be received for a swap_with_minimum.
+    #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
+    /// Get required amount of coins for a swap_with_maximum.
+    #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
+    /// Get the two tokens held in the pool
+    #[storage(read)]fn get_tokens() -> (b256, b256);
     ////////////////////
     // Actions
     ////////////////////
@@ -45,11 +51,5 @@ abi Exchange {
     #[storage(read, write)]fn swap_with_minimum(asset_id: b256, min: u64, recipient: Identity) -> u64;
     /// Swap ETH <-> Tokens and tranfers to sender.
     #[storage(read, write)]fn swap_with_maximum(asset_id: b256, amount: u64, recipient: Identity) -> u64;
-    #[storage(read, write)]fn swap(asset_id: b256, recipient: Identity) -> u64;
-    /// Get the minimum amount of coins that will be received for a swap_with_minimum.
-    #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
-    /// Get required amount of coins for a swap_with_maximum.
-    #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
-    /// Get the two tokens held in the pool
-    #[storage(read)]fn get_tokens() -> (b256, b256);
+    #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
 }

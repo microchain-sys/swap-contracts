@@ -25,6 +25,31 @@ use microchain_helpers::{
     mutiply_div,
 };
 
+enum Error {
+    InsufficentOutput: (),
+    InsufficentLiquidity: (),
+    InsufficentInput: (),
+    Invariant: (),
+}
+
+impl Root for U128 {
+    // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
+    fn sqrt(self) -> Self {
+        let mut z = ~U128::from(0, 0);
+        if (self > ~U128::from(0, 3)) {
+            z = self;
+            let mut x = self / ~U128::from(0, 2) + ~U128::from(0, 1);
+            while (x < z) {
+                z = x;
+                x = (self / x + x) / ~U128::from(0, 2);
+            }
+        } else if (self != ~U128::from(0, 0)) {
+            z = ~U128::from(0, 1);
+        }
+        z
+    }
+}
+
 ////////////////////////////////////////
 // Constants
 ////////////////////////////////////////
@@ -141,7 +166,10 @@ impl Exchange for Contract {
                 minted = 0;
             }
         } else {
-            let initial_liquidity = (current_token_0_amount * current_token_1_amount).sqrt() - MINIMUM_LIQUIDITY;
+            let initial_liquidity = (~U128::from(0, current_token_0_amount) * ~U128::from(0, current_token_1_amount))
+                .sqrt()
+                .as_u64()
+                .unwrap() - MINIMUM_LIQUIDITY;
 
             // Add fund to the reserves
             store_reserves(current_token_0_amount, current_token_1_amount);
@@ -252,28 +280,44 @@ impl Exchange for Contract {
         sold
     }
 
-    #[storage(read, write)]fn swap(asset_id: b256, recipient: Identity) -> u64 {
+    #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity) {
+        require(amount_0_out > 0 || amount_1_out > 0, Error::InsufficentOutput);
         let (token0, token1) = get_tokens();
 
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
-        let input_amount = get_input_amount(asset_id, token_0_reserve, token_1_reserve);
-        assert(input_amount > 0);
+        require(amount_0_out < token_0_reserve || amount_1_out < token_1_reserve, Error::InsufficentLiquidity);
 
-        let mut bought = 0;
-        if (asset_id == token0) {
-            bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
-            transfer(bought, ~ContractId::from(token1), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
-        } else {
-            bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
-            transfer(bought, ~ContractId::from(token0), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve - bought, token_1_reserve + bought);
-        };
-        bought
+        if (amount_0_out > 0) {
+            transfer(amount_0_out, ~ContractId::from(token0), recipient);
+        }
+        if (amount_1_out > 0) {
+            transfer(amount_1_out, ~ContractId::from(token1), recipient);
+        }
+        let balance_0 = this_balance(~ContractId::from(token0));
+        let balance_1 = this_balance(~ContractId::from(token1));
+
+        let amount0_in = if balance_0 > token_0_reserve - amount_0_out {
+            balance_0 - (token_0_reserve - amount_0_out)
+            } else {
+                0
+            };
+        let amount1_in = if balance_1 > token_1_reserve - amount_1_out {
+            balance_1 - (token_1_reserve - amount_1_out)
+            } else {
+                0
+            };
+        require(amount0_in > 0 || amount1_in > 0, Error::InsufficentInput);
+
+        let balance0_adjusted = ~U128::from(0, balance_0) * ~U128::from(0, 1000) - (~U128::from(0, amount0_in) * ~U128::from(0, 3));
+        let balance1_adjusted = ~U128::from(0, balance_1) * ~U128::from(0, 1000) - (~U128::from(0, amount1_in) * ~U128::from(0, 3));
+
+        let left = balance0_adjusted * balance1_adjusted;
+        let right = ~U128::from(0, token_0_reserve) * ~U128::from(0, token_1_reserve) * ~U128::from(0, 1000 * 1000);
+        require(left > right || left == right, Error::Invariant); // U128 doesn't have >= yet
+
+        store_reserves(balance_0, balance_1);
     }
 
     #[storage(read)]fn get_tokens() -> (b256, b256) {
