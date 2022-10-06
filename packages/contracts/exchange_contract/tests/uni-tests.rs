@@ -238,6 +238,8 @@ async fn swap6() {
     swap_test(1, 1000, 1000, 996006981).await;
 }
 
+// Optimistic tests
+
 async fn swap_test(
     swap_amount: u64,
     token_0_amount: u64,
@@ -290,4 +292,135 @@ async fn swap_test(
     let end_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
 
     assert_eq!(end_token_balance - starting_token_balance, expected_output_amount);
+}
+
+#[tokio::test]
+async fn swap_token_0() {
+    let fixture = setup().await;
+    
+    let token_0_amount = to_9_decimal(5);
+    let token_1_amount = to_9_decimal(10);
+
+    add_liquidity(&fixture, token_0_amount, token_1_amount)
+        .await;
+
+    let swap_amount = to_9_decimal(1);
+    let expected_output = 1662497915;
+
+    let token_0_starting_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_starting_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    let receipt = fixture.exchange_instance
+        .methods()
+        .swap(0, expected_output, Identity::Address(fixture.wallet.address().into()))
+        .call_params(CallParameters::new(Some(swap_amount), None, None))
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    //   .to.emit(token1, 'Transfer')
+    //   .withArgs(pair.address, wallet.address, expectedOutputAmount)
+    //   .to.emit(pair, 'Sync')
+    //   .withArgs(token0Amount.add(swapAmount), token1Amount.sub(expectedOutputAmount))
+    //   .to.emit(pair, 'Swap')
+    //   .withArgs(wallet.address, swapAmount, 0, 0, expectedOutputAmount, wallet.address)
+
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.token_0_reserve, token_0_amount + swap_amount);
+    assert_eq!(pool_info.value.token_1_reserve, token_1_amount - expected_output);
+
+    let exchange_token_0_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.exchange_contract_id, BASE_ASSET_ID)
+        .await
+        .unwrap();
+    let exchange_token_1_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.exchange_contract_id, fixture.token_asset_id)
+        .await
+        .unwrap();
+    assert_eq!(exchange_token_0_balance, token_0_amount + swap_amount);
+    assert_eq!(exchange_token_1_balance, token_1_amount - expected_output);
+
+    let token_0_end_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_end_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    assert_eq!(token_0_end_balance, token_0_starting_balance - swap_amount);
+    assert_eq!(token_1_end_balance, token_1_starting_balance + expected_output);
+}
+
+
+#[tokio::test]
+async fn swap_token_1() {
+    let fixture = setup().await;
+    
+    let token_0_amount = to_9_decimal(5);
+    let token_1_amount = to_9_decimal(10);
+
+    add_liquidity(&fixture, token_0_amount, token_1_amount)
+        .await;
+
+    let swap_amount = to_9_decimal(1);
+    let expected_output = 453305446;
+
+    let token_0_starting_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_starting_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    let receipt = fixture.exchange_instance
+        .methods()
+        .swap(expected_output, 0, Identity::Address(fixture.wallet.address().into()))
+        .call_params(CallParameters::new(Some(swap_amount), Some(fixture.token_asset_id.clone()), None))
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    //   .to.emit(token1, 'Transfer')
+    //   .withArgs(pair.address, wallet.address, expectedOutputAmount)
+    //   .to.emit(pair, 'Sync')
+    //   .withArgs(token0Amount.add(swapAmount), token1Amount.sub(expectedOutputAmount))
+    //   .to.emit(pair, 'Swap')
+    //   .withArgs(wallet.address, swapAmount, 0, 0, expectedOutputAmount, wallet.address)
+
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.token_1_reserve, token_1_amount + swap_amount);
+    assert_eq!(pool_info.value.token_0_reserve, token_0_amount - expected_output);
+
+    let exchange_token_0_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.exchange_contract_id, BASE_ASSET_ID)
+        .await
+        .unwrap();
+    let exchange_token_1_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.exchange_contract_id, fixture.token_asset_id)
+        .await
+        .unwrap();
+    assert_eq!(exchange_token_1_balance, token_1_amount + swap_amount);
+    assert_eq!(exchange_token_0_balance, token_0_amount - expected_output);
+
+    let token_0_end_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_end_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    assert_eq!(token_1_end_balance, token_1_starting_balance - swap_amount);
+    assert_eq!(token_0_end_balance, token_0_starting_balance + expected_output);
 }
