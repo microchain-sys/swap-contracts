@@ -36,7 +36,7 @@ fn to_9_decimal(num: u64) -> u64 {
 async fn setup() -> Fixture {
     let num_wallets = 1;
     let num_coins = 1;
-    let amount = to_9_decimal(1000);
+    let amount = to_9_decimal(10000);
     let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(amount));
   
     let mut wallets = launch_custom_provider_and_get_wallets(config, None).await;
@@ -206,6 +206,36 @@ async fn mint() {
 #[tokio::test]
 async fn swap0() {
     swap_test(1, 5, 10, 1662497915).await;
+}
+
+#[tokio::test]
+async fn swap1() {
+    swap_test(1, 10, 5, 453305446).await;
+}
+
+#[tokio::test]
+async fn swap2() {
+    swap_test(2, 5, 10, 2851015155).await;
+}
+
+#[tokio::test]
+async fn swap3() {
+    swap_test(2, 10, 5, 831248957).await;
+}
+
+#[tokio::test]
+async fn swap4() {
+    swap_test(1, 10, 10, 906610893).await;
+}
+
+#[tokio::test]
+async fn swap5() {
+    swap_test(1, 100, 100, 987158034).await;
+}
+
+#[tokio::test]
+async fn swap6() {
+    swap_test(1, 1000, 1000, 996006981).await;
 }
 
 async fn swap_test(
