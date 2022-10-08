@@ -30,6 +30,7 @@ enum Error {
     InsufficentLiquidity: (),
     InsufficentInput: (),
     Invariant: (),
+    InsufficentLiquidityBurned: (),
 }
 
 impl Root for U128 {
@@ -120,7 +121,6 @@ impl Exchange for Contract {
 
     #[storage(read, write)]fn add_liquidity(min_liquidity: u64, recipient: Identity) -> u64 {
         let (token0, token1) = get_tokens();
-        let sender = get_msg_sender_address_or_panic();
 
         let total_liquidity = storage.lp_token_supply;
 
@@ -186,98 +186,34 @@ impl Exchange for Contract {
         minted
     }
 
-    #[storage(read, write)]fn remove_liquidity(min_token_0: u64, min_token_1: u64, recipient: Identity) -> RemoveLiquidityInfo {
+    #[storage(read, write)]fn remove_liquidity(recipient: Identity) -> RemoveLiquidityInfo {
         let (token0, token1) = get_tokens();
-        assert(msg_amount() > 0);
-        assert(msg_asset_id().into() == (contract_id()).into());
-        assert(min_token_0 > 0 && min_token_1 > 0);
 
-        let sender = get_msg_sender_address_or_panic();
-
-        let total_liquidity = storage.lp_token_supply;
-        assert(total_liquidity > 0);
+        let lp_tokens = this_balance(contract_id());
+        require(lp_tokens > 0, Error::InsufficentInput);
 
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
-        let token_0_amount = mutiply_div(msg_amount(), token_0_reserve, total_liquidity);
-        let token_1_amount = mutiply_div(msg_amount(), token_1_reserve, total_liquidity);
+        let total_liquidity = storage.lp_token_supply;
+        let current_token_0_amount = this_balance(~ContractId::from(token0));
+        let current_token_1_amount = this_balance(~ContractId::from(token1));
 
-        assert((token_0_amount >= min_token_0) && (token_1_amount >= min_token_1));
+        let amount0 = lp_tokens * current_token_0_amount / total_liquidity; // using balances ensures pro-rata distribution
+        let amount1 = lp_tokens * current_token_1_amount / total_liquidity; // using balances ensures pro-rata distribution
+        require(amount0 > 0 && amount1 > 0, Error::InsufficentLiquidityBurned);
+        
+        burn(lp_tokens);
+        storage.lp_token_supply = total_liquidity - lp_tokens;
 
-        burn(msg_amount());
-        storage.lp_token_supply = total_liquidity - msg_amount();
+        transfer(amount0, ~ContractId::from(token0), recipient);
+        transfer(amount1, ~ContractId::from(token1), recipient);
 
-        // Remove funds to the reserves
-        store_reserves(token_0_reserve - token_0_amount, token_1_reserve - token_1_amount);
-
-        // Send tokens back
-        transfer(token_0_amount, ~ContractId::from(token0), recipient);
-        transfer(token_1_amount, ~ContractId::from(token1), recipient);
+        store_reserves(current_token_0_amount - amount0, current_token_1_amount - amount1);
 
         RemoveLiquidityInfo {
-            token_0_amount: token_0_amount,
-            token_1_amount: token_1_amount,
+            token_0_amount: amount0,
+            token_1_amount: amount1,
         }
-    }
-
-    #[storage(read, write)]fn swap_with_minimum(asset_id: b256, min: u64, recipient: Identity) -> u64 {
-        let (token0, token1) = get_tokens();
-
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-
-        let input_amount = get_input_amount(asset_id, token_0_reserve, token_1_reserve);
-        assert(input_amount > 0 && min > 0);
-
-        let mut bought = 0;
-        if (asset_id == token0) {
-            bought = get_input_price(input_amount, token_0_reserve, token_1_reserve);
-            assert(bought >= min);
-            transfer(bought, ~ContractId::from(token1), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve + input_amount, token_1_reserve - bought);
-        } else {
-            bought = get_input_price(input_amount, token_1_reserve, token_0_reserve);
-            assert(bought >= min);
-            transfer(bought, ~ContractId::from(token0), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve - bought, token_1_reserve + bought);
-        };
-        bought
-    }
-
-    #[storage(read, write)]fn swap_with_maximum(asset_id: b256, amount: u64, recipient: Identity) -> u64 {
-        let (token0, token1) = get_tokens();
-
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-
-        let input_amount = get_input_amount(asset_id, token_0_reserve, token_1_reserve);
-        assert(amount > 0 && input_amount > 0);
-
-        let mut sold = 0;
-        if (asset_id == token0) {
-            sold = get_output_price(amount, token_0_reserve, token_1_reserve);
-            assert(input_amount >= sold);
-            let refund = input_amount - sold;
-            if refund > 0 {
-                transfer(refund, ~ContractId::from(token0), recipient);
-            };
-            transfer(amount, ~ContractId::from(token1), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve + sold, token_1_reserve - amount);
-        } else {
-            sold = get_output_price(amount, token_1_reserve, token_0_reserve);
-            assert(input_amount >= sold);
-            let refund = input_amount - sold;
-            if refund > 0 {
-                transfer(refund, ~ContractId::from(token1), recipient);
-            };
-            transfer(amount, ~ContractId::from(token0), recipient);
-            // Update reserve
-            store_reserves(token_0_reserve - amount, token_1_reserve + sold);
-        };
-        sold
     }
 
     #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity) {
