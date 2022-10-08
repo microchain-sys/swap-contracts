@@ -9,16 +9,14 @@ use std::{
     result::*,
     revert::{revert, require},
     identity::Identity,
-    token::{
-        transfer_to_output,
-        force_transfer_to_contract,
-    },
+    math::Root,
     u128::U128,
 };
 
 
 enum Error {
     InsufficentReserves: (),
+    InsufficentAmount: (),
 }
 
 // Liquidity miner fee apply to all swaps
@@ -69,6 +67,12 @@ pub fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: 
             Result::Ok(inner_value) => inner_value + 1, _ => revert(0), 
         }
     }
+}
+
+pub fn quote(amount_a: u64, reserve_a: u64, reserve_b: u64) -> u64 {
+    require(amount_a > 0, Error::InsufficentAmount());
+    require(reserve_a > 0 && reserve_b > 0, Error::InsufficentReserves);
+    return amount_a * reserve_b / reserve_a;
 }
 
 #[storage(read)]pub fn get_b256(key: b256) -> b256 {
