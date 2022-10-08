@@ -30,6 +30,7 @@ enum Error {
     InsufficentLiquidity: (),
     InsufficentInput: (),
     Invariant: (),
+    InsufficentLiquidityMinted: (),
     InsufficentLiquidityBurned: (),
 }
 
@@ -119,7 +120,7 @@ impl Exchange for Contract {
         token_1_amount
     }
 
-    #[storage(read, write)]fn add_liquidity(min_liquidity: u64, recipient: Identity) -> u64 {
+    #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64 {
         let (token0, token1) = get_tokens();
 
         let total_liquidity = storage.lp_token_supply;
@@ -135,36 +136,15 @@ impl Exchange for Contract {
 
         let mut minted: u64 = 0;
         if total_liquidity > 0 {
-            assert(min_liquidity > 0);
-            let token_1_amount = mutiply_div(current_token_0_amount, token_1_reserve, token_0_reserve);
-            let liquidity_minted = mutiply_div(current_token_0_amount, total_liquidity, token_0_reserve);
+            let token0_liquidity = current_token_0_amount * total_liquidity / token_0_reserve;
+            let token1_liquidity = current_token_1_amount * total_liquidity / token_1_reserve;
 
-            assert(liquidity_minted >= min_liquidity);
+            minted = if (token0_liquidity < token1_liquidity) { token0_liquidity } else { token1_liquidity };
+            
+            store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + current_token_1_amount);
 
-            // if token ratio is correct, proceed with liquidity operation
-            // otherwise, return current user balances in contract
-            if (current_token_1_amount >= token_1_amount) {
-                // Add fund to the reserves
-                store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + token_1_amount);
-
-                // Mint LP token
-                mint(liquidity_minted);
-                storage.lp_token_supply = total_liquidity + liquidity_minted;
-
-                transfer(liquidity_minted, contract_id(), recipient);
-
-                // If user sent more than the correct ratio, we deposit back the extra tokens
-                let token_extra = current_token_1_amount - token_1_amount;
-                if (token_extra > 0) {
-                    transfer(token_extra, ~ContractId::from(token1), recipient);
-                }
-
-                minted = liquidity_minted;
-            } else {
-                transfer(current_token_1_amount, ~ContractId::from(token1), recipient);
-                transfer(current_token_0_amount, ~ContractId::from(token0), recipient);
-                minted = 0;
-            }
+            mint(minted);
+            storage.lp_token_supply = total_liquidity + minted;
         } else {
             let initial_liquidity = (~U128::from(0, current_token_0_amount) * ~U128::from(0, current_token_1_amount))
                 .sqrt()
@@ -178,10 +158,11 @@ impl Exchange for Contract {
             mint(initial_liquidity);
             storage.lp_token_supply = initial_liquidity + MINIMUM_LIQUIDITY;
 
-            transfer(initial_liquidity, contract_id(), recipient);
-
             minted = initial_liquidity;
         };
+        require(minted > 0, Error::InsufficentLiquidityMinted);
+
+        transfer(minted, contract_id(), recipient);
 
         minted
     }

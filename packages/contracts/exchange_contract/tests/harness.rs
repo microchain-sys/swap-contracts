@@ -126,7 +126,7 @@ async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u
 
     let result = fixture.exchange_instance
         .methods()
-        .add_liquidity(1, Identity::Address(fixture.wallet.address().into()))
+        .add_liquidity(Identity::Address(fixture.wallet.address().into()))
         .append_variable_outputs(2)
         .tx_params(TxParameters {
             gas_price: 0,
@@ -175,7 +175,7 @@ async fn mint() {
     // It should return the same amount of LP as the amount of ETH deposited
     let result = fixture.exchange_instance
         .methods()
-        .add_liquidity(1, Identity::Address(fixture.wallet.address().into()))
+        .add_liquidity(Identity::Address(fixture.wallet.address().into()))
         .append_variable_outputs(2)
         .tx_params(TxParameters {
             gas_price: 0,
@@ -201,6 +201,8 @@ async fn mint() {
     assert_eq!(pool_info.value.token_0_reserve, token_0_amount);
     assert_eq!(pool_info.value.token_1_reserve, token_1_amount);
     assert_eq!(pool_info.value.lp_token_supply, expected_liquidity);
+
+    // TODO: test non-initialization mints
 }
 
 #[tokio::test]

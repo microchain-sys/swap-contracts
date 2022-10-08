@@ -44,7 +44,7 @@ abi Exchange {
     // Actions
     ////////////////////
     /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
-    #[storage(read, write)]fn add_liquidity(min_liquidity: u64, recipient: Identity) -> u64;
+    #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64;
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
     #[storage(read, write)]fn remove_liquidity( recipient: Identity) -> RemoveLiquidityInfo;
     #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
