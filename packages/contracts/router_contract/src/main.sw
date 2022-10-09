@@ -2,7 +2,10 @@ contract;
 
 use std::{
     chain::auth::msg_sender,
-    context::call_frames::msg_asset_id,
+    context::{
+        msg_amount,
+        call_frames::msg_asset_id,
+    },
 };
 use exchange_abi::Exchange;
 
@@ -40,7 +43,7 @@ enum Error {
     ExcessiveInput: (),
     InsufficentAAmount: (),
     InsufficentBAmount: (),
-    // InvalidToken: (),
+    InvalidToken: (),
 }
 
 struct SwapData {
@@ -71,7 +74,12 @@ abi Router {
         recipient: Identity,
     ) -> AddLiquidityOutput;
 
-    fn swap_exact_input(swap_data: SwapData) -> SwapOutput;
+    fn swap_exact_input(
+        pool: b256,
+        min_amount_out: u64,
+        recipient: Identity,
+    ) -> SwapOutput;
+
     fn swap_exact_output(swap_data: SwapData) -> SwapOutput;
 }
 
@@ -133,31 +141,33 @@ impl Router for Contract {
         }
     }
 
+    fn swap_exact_input(
+        pool: b256,
+        min_amount_out: u64,
+        recipient: Identity,
+    ) -> SwapOutput {
+        let exchange = abi(Exchange, pool);
+        let input_asset: b256 = msg_asset_id().into();
 
-    fn swap_exact_input(swap_data: SwapData) -> SwapOutput {
-        let exchange = abi(Exchange, swap_data.pool);
+        let (token0, token1) = exchange.get_tokens();
+        let pool_info = exchange.get_pool_info();
 
-        // let (token0, token1) = exchange.get_tokens();
-        // let pool_info = exchange.pool_info();
-        // let (input_reserve, output_reserve) = match msg_asset_id().into() {
-        //     token0 => (pool_info.token_0_reserve, pool_info.token_1_reserve),
-        //     token1 => (pool_info.token_1_reserve, pool_info.token_0_reserve),
-        // };
+        require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
 
-        // uint amountOut = get_input_price(swap_data.exact_amount, reserve_input, reserve_output);
+        let (out0, out1) = if token0 == input_asset {
+            (0, get_input_price(msg_amount(), pool_info.token_0_reserve, pool_info.token_1_reserve))
+        } else {
+            (get_input_price(msg_amount(), pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
+        };
 
-        let sender_identity = msg_sender().unwrap();
-
-        let output_amount = exchange.swap{
-            asset_id: msg_asset_id().into(),
-            coins: swap_data.exact_amount,
-        }(0, 0, sender_identity);
-
-        // require(output_amount >= swap_data.slippage_amount, Error::InsufficentOutput);
+        exchange.swap{
+            asset_id: input_asset,
+            coins: msg_amount(),
+        }(out0, out1, recipient);
 
         SwapOutput {
-            input_amount: swap_data.exact_amount,
-            output_amount: 0,//output_amount,
+            input_amount: msg_amount(),
+            output_amount: if token0 == input_asset { out1 } else { out0 },
         }
     }
 

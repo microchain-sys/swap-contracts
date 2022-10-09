@@ -3,7 +3,7 @@ use fuels::{
     prelude::*,
     fuels_abigen::abigen,
     signers::WalletUnlocked,
-    tx::{AssetId, ContractId, Bytes32, StorageSlot},
+    tx::{AssetId, Bytes32, StorageSlot},
 };
 
 ///////////////////////////////
@@ -128,6 +128,46 @@ async fn setup() -> Fixture {
     }
 }
 
+
+async fn add_pool_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u64) {
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.exchange_contract_id,
+            token_0_amount,
+            BASE_ASSET_ID,
+            TxParameters::default()
+        )
+        .await;
+
+    // Deposit some Token Asset
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.exchange_contract_id,
+            token_1_amount,
+            fixture.token_asset_id.clone(),
+            TxParameters::default()
+        )
+        .await;
+
+    let result = fixture.exchange_instance
+        .methods()
+        .add_liquidity(Identity::Address(fixture.wallet.address().into()))
+        .append_variable_outputs(2)
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            None,
+            None,
+            Some(100_000_000),
+        ))
+        .call()
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn add_liquidity() {
     let fixture = setup().await;
@@ -193,4 +233,58 @@ async fn add_liquidity() {
 
     let lp_tokens = fixture.wallet.get_asset_balance(&fixture.exchange_asset_id).await.unwrap();
     assert_eq!(lp_tokens, expected_liquidity - MINIMUM_LIQUIDITY);
+}
+
+#[tokio::test]
+async fn swap_exact_input_0() {
+    let fixture = setup().await;
+
+    let token0_amount = to_9_decimal(5);
+    let token1_amount = to_9_decimal(10);
+    let swap_amount = to_9_decimal(1);
+    let expected_amount = 1662497915;
+
+    add_pool_liquidity(&fixture, token0_amount, token1_amount)
+        .await;
+
+    let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    let result = fixture.router_instance
+        .methods()
+        .swap_exact_input(
+            Bits256(fixture.exchange_contract_id.hash().into()),
+            expected_amount,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(swap_amount),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[fixture.exchange_contract_id.clone()])
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    //   .to.emit(token0, 'Transfer')
+    //   .withArgs(wallet.address, pair.address, swapAmount)
+    //   .to.emit(token1, 'Transfer')
+    //   .withArgs(pair.address, wallet.address, expectedOutputAmount)
+    //   .to.emit(pair, 'Sync')
+    //   .withArgs(token0Amount.add(swapAmount), token1Amount.sub(expectedOutputAmount))
+    //   .to.emit(pair, 'Swap')
+    //   .withArgs(router.address, swapAmount, 0, 0, expectedOutputAmount, wallet.address)
+
+    assert_eq!(result.value.input_amount, swap_amount);
+    assert_eq!(result.value.output_amount, expected_amount);
+
+    let end_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    assert_eq!(end_token_balance - starting_token_balance, expected_amount);
 }

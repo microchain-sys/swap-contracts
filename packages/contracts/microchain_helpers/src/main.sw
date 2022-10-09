@@ -40,15 +40,13 @@ pub fn mutiply_div(a: u64, b: u64, c: u64) -> u64 {
 
 /// Pricing function for converting between tokens.
 pub fn get_input_price(input_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
+    require(input_amount > 0, Error::InsufficentAmount);
     require(input_reserve > 0 && output_reserve > 0, Error::InsufficentReserves);
-    let input_amount_with_fee: u64 = calculate_amount_with_fee(input_amount);
-    let numerator = ~U128::from(0, input_amount_with_fee) * ~U128::from(0, output_reserve);
-    let denominator = ~U128::from(0, input_reserve) + ~U128::from(0, input_amount_with_fee);
+    let input_amount_with_fee = ~U128::from(0, input_amount) * ~U128::from(0, 997);
+    let numerator = input_amount_with_fee * ~U128::from(0, output_reserve);
+    let denominator = (~U128::from(0, input_reserve) * ~U128::from(0, 1000)) + input_amount_with_fee;
     let result_wrapped = (numerator / denominator).as_u64();
-    // TODO remove workaround once https://github.com/FuelLabs/sway/pull/1671 lands.
-    match result_wrapped {
-        Result::Ok(inner_value) => inner_value, _ => revert(0), 
-    }
+    result_wrapped.unwrap()
 }
 
 /// Pricing function for converting between tokens.
