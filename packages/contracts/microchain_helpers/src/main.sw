@@ -51,20 +51,13 @@ pub fn get_input_price(input_amount: u64, input_reserve: u64, output_reserve: u6
 
 /// Pricing function for converting between tokens.
 pub fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: u64) -> u64 {
+    require(output_amount > 0, Error::InsufficentAmount);
     require(input_reserve > 0 && output_reserve > 0, Error::InsufficentReserves);
-    let numerator = ~U128::from(0, input_reserve) * ~U128::from(0, output_amount);
-    let denominator = ~U128::from(0, calculate_amount_with_fee(output_reserve - output_amount));
-    let result_wrapped = (numerator / denominator).as_u64();
-    if denominator > numerator {
-        // Emulate Infinity Value
-        10000000000000000000 // Todo: use max
-        // ~u64::max()
-    } else {
-        // TODO remove workaround once https://github.com/FuelLabs/sway/pull/1671 lands.
-        match result_wrapped {
-            Result::Ok(inner_value) => inner_value + 1, _ => revert(0), 
-        }
-    }
+
+    let numerator = ~U128::from(0, input_reserve) * ~U128::from(0, output_amount) * ~U128::from(0, 1000);
+    let denominator = ~U128::from(0, output_reserve - output_amount) * ~U128::from(0, 997);
+    let amount_in = (numerator / denominator) + ~U128::from(0, 1);
+    amount_in.as_u64().unwrap()
 }
 
 pub fn quote(amount_a: u64, reserve_a: u64, reserve_b: u64) -> u64 {

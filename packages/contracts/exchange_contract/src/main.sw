@@ -204,7 +204,7 @@ impl Exchange for Contract {
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
-        require(amount_0_out < token_0_reserve || amount_1_out < token_1_reserve, Error::InsufficentLiquidity);
+        require(amount_0_out < token_0_reserve && amount_1_out < token_1_reserve, Error::InsufficentLiquidity);
 
         if (amount_0_out > 0) {
             transfer(amount_0_out, ~ContractId::from(token0), recipient);
