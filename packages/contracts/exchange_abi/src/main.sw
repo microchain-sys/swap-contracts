@@ -1,6 +1,9 @@
 library exchange_abi;
 
-use std::contract_id::ContractId;
+use std::{
+    contract_id::ContractId,
+    identity::Identity,
+};
 
 pub struct RemoveLiquidityInfo {
     token_0_amount: u64,
@@ -27,29 +30,22 @@ abi Exchange {
     ////////////////////
     // Read only
     ////////////////////
-    /// Return the current balance of given token on the contract
-    #[storage(read)]fn get_balance(asset_id: ContractId) -> u64;
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64;
-    ////////////////////
-    // Actions
-    ////////////////////
-    /// Deposit coins for later adding to liquidity pool.
-    #[storage(read, write)]fn deposit();
-    /// Withdraw coins that have not been added to a liquidity pool yet.
-    #[storage(read, write)]fn withdraw(amount: u64, asset_id: ContractId);
-    /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
-    #[storage(read, write)]fn add_liquidity(min_liquidity: u64, deadline: u64) -> u64;
-    /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
-    #[storage(read, write)]fn remove_liquidity(min_token_0: u64, min_token_1: u64, deadline: u64) -> RemoveLiquidityInfo;
-    /// Swap ETH <-> Tokens and tranfers to sender.
-    #[storage(read, write)]fn swap_with_minimum(min: u64, deadline: u64) -> u64;
-    /// Swap ETH <-> Tokens and tranfers to sender.
-    #[storage(read, write)]fn swap_with_maximum(amount: u64, deadline: u64) -> u64;
     /// Get the minimum amount of coins that will be received for a swap_with_minimum.
     #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo;
     /// Get required amount of coins for a swap_with_maximum.
     #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo;
+    /// Get the two tokens held in the pool
+    #[storage(read)]fn get_tokens() -> (b256, b256);
+    ////////////////////
+    // Actions
+    ////////////////////
+    /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
+    #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64;
+    /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
+    #[storage(read, write)]fn remove_liquidity( recipient: Identity) -> RemoveLiquidityInfo;
+    #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
 }

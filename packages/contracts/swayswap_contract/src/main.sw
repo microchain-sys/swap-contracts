@@ -1,7 +1,7 @@
 contract;
 
 use std::contract_id::ContractId;
-use swayswap_helpers::{store_b256, get_b256};
+use microchain_helpers::{store_b256, get_b256};
 
 abi SwapSwap {
     // Add exchange contract to the token
