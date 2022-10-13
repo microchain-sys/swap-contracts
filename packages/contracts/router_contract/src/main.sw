@@ -23,13 +23,7 @@ use std::{
         transfer,
         force_transfer_to_contract,
     },
-    logging::log,
-    inputs::{
-        Input,
-        input_count,
-        input_owner,
-        input_type,
-    },
+    vec::*,
 };
 
 use microchain_helpers::{
@@ -45,13 +39,6 @@ enum Error {
     InsufficentBAmount: (),
     InvalidToken: (),
     InvalidInput: (),
-}
-
-struct SwapData {
-    exact_amount: u64,
-    slippage_amount: u64,
-    // output: b256,
-    pool: b256,
 }
 
 struct AddLiquidityOutput {
@@ -91,6 +78,13 @@ abi Router {
     fn swap_exact_input_multihop(
         pools: Vec<b256>,
         min_amount_out: u64,
+        recipient: Identity,
+    ) -> SwapOutput;
+
+    fn swap_exact_output_multihop(
+        pools: Vec<b256>,
+        amount_out: u64,
+        max_amount_in: u64,
         recipient: Identity,
     ) -> SwapOutput;
 }
@@ -277,6 +271,106 @@ impl Router for Contract {
             // Weird variable naming, but typically the input for swap n is the output for swap n - 1
             // Therefore, the final "input" is our output from the whole trade
             output_amount: output_amount,
+        }
+    }
+
+    fn swap_exact_output_multihop(
+        pools: Vec<b256>,
+        amount_out: u64,
+        max_amount_in: u64,
+        recipient: Identity,
+    ) -> SwapOutput {
+        require(pools.len() > 0, Error::InvalidInput);
+
+        let mut input_assets: Vec<b256> = ~Vec::with_capacity(pools.len());
+        input_assets.push(msg_asset_id().into());
+
+        let mut input_amounts: Vec<u64> = ~Vec::with_capacity(pools.len());
+        let mut output_amounts: Vec<u64> = ~Vec::with_capacity(pools.len());
+
+        let mut i = 0;
+        while i < pools.len() {
+            let pool_id = pools.get(i).unwrap();
+            let exchange = abi(Exchange, pool_id);
+            let (token0, token1) = exchange.get_tokens();
+            let input_asset = input_assets.get(i).unwrap();
+            require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
+            
+            input_assets.push(if input_asset == token0 { token1 } else { token0 });
+
+            // Hacky way to create an empty vector, hopefully there's a method added
+            input_amounts.push(0);
+            output_amounts.push(0);
+
+            i += 1;
+        }
+        output_amounts.set(pools.len() - 1, amount_out);
+
+        i = pools.len();
+        while i > 0 {
+            let j = i - 1;
+            // TODO: should we cache this in memory since it's read again in the next loop?
+            let pool_id = pools.get(j).unwrap();
+            let input_asset = input_assets.get(j).unwrap();
+            let exchange = abi(Exchange, pool_id);
+            let (token0, token1) = exchange.get_tokens();
+            let pool_info = exchange.get_pool_info();
+            let pool_output_amount = output_amounts.get(j).unwrap();
+
+            let input_amount = if token0 == input_asset {
+                get_output_price(pool_output_amount, pool_info.token_0_reserve, pool_info.token_1_reserve)
+            } else {
+                get_output_price(pool_output_amount, pool_info.token_1_reserve, pool_info.token_0_reserve)
+            };
+
+            input_amounts.set(j, input_amount);
+            if (j > 0) {
+                output_amounts.set(j - 1, input_amount);
+            }
+
+            i -= 1;
+        }
+
+        i = 0;
+        while i < pools.len() {
+            let pool_id = pools.get(i).unwrap();
+            let exchange = abi(Exchange,pool_id);
+            let (token0, token1) = exchange.get_tokens();
+            let pool_info = exchange.get_pool_info();
+
+            let input_asset = input_assets.get(i).unwrap();
+            let input_amount = input_amounts.get(i).unwrap();
+            let output_amount = output_amounts.get(i).unwrap();
+
+            let (out0, out1) = if token0 == input_asset { (0, output_amount) } else { (output_amount, 0) };
+
+            let swap_recipient = if i == pools.len() - 1 {
+                    recipient
+                } else {
+                    Identity::ContractId(~ContractId::from(pools.get(i + 1).unwrap()))
+                };
+
+            if i == 0 {
+                exchange.swap{
+                    asset_id: input_asset,
+                    coins: input_amount,
+                }(out0, out1, swap_recipient);
+
+                if (msg_amount() > input_amount) {
+                    let sender_identity = msg_sender().unwrap();
+                    transfer(msg_amount() - input_amount, msg_asset_id(), sender_identity);
+                }
+            } else {
+                // No need to include assets, the last swap already sent them
+                exchange.swap(out0, out1, swap_recipient);
+            }
+
+            i += 1;
+        }
+
+        SwapOutput {
+            input_amount: input_amounts.get(0).unwrap(),
+            output_amount: amount_out,
         }
     }
 }

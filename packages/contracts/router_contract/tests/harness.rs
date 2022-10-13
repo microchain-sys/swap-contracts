@@ -521,3 +521,76 @@ async fn swap_exact_input_multi() {
 
     assert_eq!(end_token_balance - starting_token_balance, expected_amount);
 }
+
+
+#[tokio::test]
+async fn swap_exact_output_multi() {
+    let fixture = setup().await;
+
+    let token0_amount_a = to_9_decimal(5);
+    let token1_amount_a = to_9_decimal(10);
+
+    let token0_amount_b = to_9_decimal(5);
+    let token1_amount_b = to_9_decimal(10);
+
+    let input_amount = to_9_decimal(2);
+    let expected_input = to_9_decimal(1);
+    let output_amount = 2489685056;
+
+    add_pool_a_liquidity(&fixture, token0_amount_a, token1_amount_a)
+        .await;
+
+    add_pool_b_liquidity(&fixture, token0_amount_b, token1_amount_b)
+        .await;
+
+    let starting_eth_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_b_asset_id).await.unwrap();
+
+    let result = fixture.router_instance
+        .methods()
+        .swap_exact_output_multihop(
+            vec![
+                Bits256(fixture.exchange_a_contract_id.hash().into()),
+                Bits256(fixture.exchange_b_contract_id.hash().into()),
+            ],
+            output_amount,
+            expected_input,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(input_amount),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[
+            fixture.exchange_a_contract_id.clone(),
+            fixture.exchange_b_contract_id.clone(),
+        ])
+        .append_variable_outputs(2)
+        .call()
+        .await
+        .unwrap();
+
+    //   .to.emit(token0, 'Transfer')
+    //   .withArgs(wallet.address, pair.address, swapAmount)
+    //   .to.emit(token1, 'Transfer')
+    //   .withArgs(pair.address, wallet.address, expectedOutputAmount)
+    //   .to.emit(pair, 'Sync')
+    //   .withArgs(token0Amount.add(swapAmount), token1Amount.sub(expectedOutputAmount))
+    //   .to.emit(pair, 'Swap')
+    //   .withArgs(router.address, swapAmount, 0, 0, expectedOutputAmount, wallet.address)
+
+    assert_eq!(result.value.input_amount, expected_input);
+    assert_eq!(result.value.output_amount, output_amount);
+
+    let end_eth_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let end_token_balance = fixture.wallet.get_asset_balance(&fixture.token_b_asset_id).await.unwrap();
+
+    assert_eq!(end_token_balance - starting_token_balance, output_amount);
+    assert_eq!(starting_eth_balance - end_eth_balance, expected_input);
+}
