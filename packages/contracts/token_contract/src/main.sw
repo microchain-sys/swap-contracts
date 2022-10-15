@@ -60,12 +60,7 @@ impl Token for Contract {
 
     #[storage(read)]fn transfer_coins(coins: u64, address: Address) {
         validate_owner();
-        transfer_to_output(coins, contract_id(), address);
-    }
-
-    #[storage(read)]fn transfer_token_to_output(coins: u64, asset_id: ContractId, address: Address) {
-        validate_owner();
-        transfer_to_output(coins, asset_id, address);
+        transfer_to_address(coins, contract_id(), address);
     }
 
     //////////////////////////////////////
@@ -76,7 +71,7 @@ impl Token for Contract {
 
         // Enable a address to mint only once
         let sender = get_msg_sender_address_or_panic();
-        require(storage.mint_list.get(sender) == false, Error::AddressAlreadyMint);
+        require(storage.owner == sender || storage.mint_list.get(sender) == false, Error::AddressAlreadyMint);
 
         storage.mint_list.insert(sender, true);
         mint_to_address(storage.mint_amount, sender);
@@ -95,5 +90,9 @@ impl Token for Contract {
 
     fn get_token_balance(asset_id: ContractId) -> u64 {
         balance_of(asset_id, contract_id())
+    }
+
+    #[storage(read)]fn get_owner() -> Address {
+        storage.owner
     }
 }

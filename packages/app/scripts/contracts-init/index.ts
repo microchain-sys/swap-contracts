@@ -1,14 +1,13 @@
-import type { Overrides } from 'fuels';
-import { Wallet } from 'fuels';
+import { bn, Wallet } from 'fuels';
 
 import '../../load.envs';
 import './loadDockerEnv';
-import { ExchangeContractAbi__factory, TokenContractAbi__factory } from '../../src/types/contracts';
+import { ExchangeContractAbi__factory, RouterContractAbi__factory, TokenContractAbi__factory } from '../../src/types/contracts';
 
 import { initializePool } from './initializePool';
 import { initializeTokenContract } from './initializeTokenContract';
 
-const { WALLET_SECRET, PROVIDER_URL, BYTE_PRICE, GAS_PRICE, VITE_CONTRACT_ID, VITE_TOKEN_ID } =
+const { WALLET_SECRET, PROVIDER_URL, GAS_PRICE, VITE_CONTRACT_ID, VITE_TOKEN_ID, ROUTER_CONTRACT_ID } =
   process.env;
 
 if (!WALLET_SECRET) {
@@ -18,17 +17,22 @@ if (!WALLET_SECRET) {
 
 async function main() {
   const wallet = new Wallet(WALLET_SECRET!, PROVIDER_URL);
+
+  if (!ROUTER_CONTRACT_ID || !VITE_CONTRACT_ID || !VITE_TOKEN_ID) {
+    console.error('Contract addresses missing');
+    console.error({ ROUTER_CONTRACT_ID, VITE_CONTRACT_ID, VITE_TOKEN_ID });
+    return
+  }
+
+  const routerContract = RouterContractAbi__factory.connect(ROUTER_CONTRACT_ID!, wallet);
   const exchangeContract = ExchangeContractAbi__factory.connect(VITE_CONTRACT_ID!, wallet);
   const tokenContract = TokenContractAbi__factory.connect(VITE_TOKEN_ID!, wallet);
-  const overrides: Overrides = {
-    gasPrice: BigInt(GAS_PRICE || 0),
-    bytePrice: BigInt(BYTE_PRICE || 0),
+  const overrides = {
+    gasPrice: bn(GAS_PRICE || 0),
   };
 
   await initializeTokenContract(tokenContract, overrides);
-  if (process.argv.includes('--init-pool')) {
-    await initializePool(tokenContract, exchangeContract, overrides);
-  }
+  await initializePool(routerContract, tokenContract, exchangeContract, overrides);
 }
 
 main();

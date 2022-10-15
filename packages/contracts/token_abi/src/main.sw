@@ -19,8 +19,8 @@ abi Token {
     #[storage(read)]fn burn_coins(burn_amount: u64);
     // Transfer a contract coins to a given output
     #[storage(read)]fn transfer_coins(coins: u64, address: Address);
-    // Transfer a specified token from the contract to a given output
-    #[storage(read)]fn transfer_token_to_output(coins: u64, asset_id: ContractId, address: Address);
     // Method called from address to mint coins
     #[storage(read, write)]fn mint();
+    // Return the contract owner
+    #[storage(read)]fn get_owner() -> Address;
 }

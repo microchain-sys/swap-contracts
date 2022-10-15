@@ -87,6 +87,9 @@ abi Router {
         max_amount_in: u64,
         recipient: Identity,
     ) -> SwapOutput;
+
+    // Used to allow easy token deposits, should be removed before prod
+    fn null();
 }
 
 impl Router for Contract {
@@ -373,4 +376,6 @@ impl Router for Contract {
             output_amount: amount_out,
         }
     }
+
+    fn null() {}
 }

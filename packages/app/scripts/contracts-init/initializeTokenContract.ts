@@ -1,22 +1,22 @@
-import type { Overrides } from 'fuels';
-
+import { bn } from 'fuels';
 import type { TokenContractAbi } from '../../src/types/contracts';
 
 const { MINT_AMOUNT } = process.env;
 
 export async function initializeTokenContract(
   tokenContract: TokenContractAbi,
-  overrides: Overrides
+  overrides: any
 ) {
-  const mintAmount = BigInt(MINT_AMOUNT || '2000000000000');
+  const mintAmount = bn(MINT_AMOUNT || '2000000000000');
   const address = {
-    value: tokenContract.wallet!.address,
+    value: tokenContract.wallet!.address.toB256(),
   };
 
-  try {
-    process.stdout.write('Initialize Token Contract\n');
-    await tokenContract.submit.initialize(mintAmount, address, overrides);
-  } catch (err) {
-    process.stdout.write('Token Contract already initialized\n');
+  const { value: owner } = await tokenContract.functions.get_owner().get()
+  if (owner.value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    return;
   }
+
+  process.stdout.write('Initialize Token Contract\n');
+  await tokenContract.functions.initialize(mintAmount, address).txParams(overrides).call();
 }

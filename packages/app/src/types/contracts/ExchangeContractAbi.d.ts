@@ -7,557 +7,118 @@ import type {
   FunctionFragment,
   DecodedValue,
   Contract,
-  ContractCall,
-  ContractCallOptions,
-  Overrides,
-  BigNumberish,
   BytesLike,
-  CallResult,
-  ScriptTransactionRequest,
-  TransactionResult,
+  BigNumberish,
+  InvokeFunction,
+  BN,
 } from 'fuels';
+
+import type { Enum, Option } from './common';
+
+export type PoolInfoInput = {
+  token_0_reserve: BigNumberish;
+  token_1_reserve: BigNumberish;
+  lp_token_supply: BigNumberish;
+};
+
+export type PoolInfoOutput = {
+  token_0_reserve: BN;
+  token_1_reserve: BN;
+  lp_token_supply: BN;
+};
+
+export type AddressInput = { value: string };
+
+export type AddressOutput = { value: string };
 
 export type ContractIdInput = { value: string };
 
 export type ContractIdOutput = { value: string };
 
-export type PoolInfoInput = {
-  eth_reserve: BigNumberish;
-  token_reserve: BigNumberish;
-  lp_token_supply: BigNumberish;
-};
-
-export type PoolInfoOutput = {
-  eth_reserve: bigint;
-  token_reserve: bigint;
-  lp_token_supply: bigint;
-};
-
 export type RemoveLiquidityInfoInput = {
-  eth_amount: BigNumberish;
-  token_amount: BigNumberish;
+  token_0_amount: BigNumberish;
+  token_1_amount: BigNumberish;
 };
 
 export type RemoveLiquidityInfoOutput = {
-  eth_amount: bigint;
-  token_amount: bigint;
+  token_0_amount: BN;
+  token_1_amount: BN;
 };
 
 export type PreviewInfoInput = { amount: BigNumberish; has_liquidity: boolean };
 
-export type PreviewInfoOutput = { amount: bigint; has_liquidity: boolean };
+export type PreviewInfoOutput = { amount: BN; has_liquidity: boolean };
+
+export type IdentityInput = Enum<{
+  Address: AddressInput;
+  ContractId: ContractIdInput;
+}>;
+
+export type IdentityOutput = Enum<{
+  Address: AddressOutput;
+  ContractId: ContractIdOutput;
+}>;
 
 interface ExchangeContractAbiInterface extends Interface {
   functions: {
-    get_balance: FunctionFragment;
     get_pool_info: FunctionFragment;
     get_add_liquidity_token_amount: FunctionFragment;
-    deposit: FunctionFragment;
-    withdraw: FunctionFragment;
     add_liquidity: FunctionFragment;
     remove_liquidity: FunctionFragment;
-    swap_with_minimum: FunctionFragment;
-    swap_with_maximum: FunctionFragment;
+    swap: FunctionFragment;
+    get_tokens: FunctionFragment;
     get_swap_with_minimum: FunctionFragment;
     get_swap_with_maximum: FunctionFragment;
   };
 
-  encodeFunctionData(functionFragment: 'get_balance', values: [ContractIdInput]): Uint8Array;
   encodeFunctionData(functionFragment: 'get_pool_info', values?: undefined): Uint8Array;
   encodeFunctionData(
     functionFragment: 'get_add_liquidity_token_amount',
     values: [BigNumberish]
   ): Uint8Array;
-  encodeFunctionData(functionFragment: 'deposit', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'add_liquidity', values: [IdentityInput]): Uint8Array;
+  encodeFunctionData(functionFragment: 'remove_liquidity', values: [IdentityInput]): Uint8Array;
   encodeFunctionData(
-    functionFragment: 'withdraw',
-    values: [BigNumberish, ContractIdInput]
+    functionFragment: 'swap',
+    values: [BigNumberish, BigNumberish, IdentityInput]
   ): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'add_liquidity',
-    values: [BigNumberish, BigNumberish]
-  ): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'remove_liquidity',
-    values: [BigNumberish, BigNumberish, BigNumberish]
-  ): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'swap_with_minimum',
-    values: [BigNumberish, BigNumberish]
-  ): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'swap_with_maximum',
-    values: [BigNumberish, BigNumberish]
-  ): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_tokens', values?: undefined): Uint8Array;
   encodeFunctionData(functionFragment: 'get_swap_with_minimum', values: [BigNumberish]): Uint8Array;
   encodeFunctionData(functionFragment: 'get_swap_with_maximum', values: [BigNumberish]): Uint8Array;
 
-  decodeFunctionData(functionFragment: 'get_balance', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_pool_info', data: BytesLike): DecodedValue;
   decodeFunctionData(
     functionFragment: 'get_add_liquidity_token_amount',
     data: BytesLike
   ): DecodedValue;
-  decodeFunctionData(functionFragment: 'deposit', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'withdraw', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'add_liquidity', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'remove_liquidity', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_with_minimum', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_with_maximum', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'swap', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_tokens', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_swap_with_minimum', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'get_swap_with_maximum', data: BytesLike): DecodedValue;
 }
 
 export class ExchangeContractAbi extends Contract {
   interface: ExchangeContractAbiInterface;
-  prepareCall: {
-    get_balance(asset_id: ContractIdInput, options?: ContractCallOptions): ContractCall;
+  functions: {
+    get_pool_info: InvokeFunction<[], PoolInfoOutput>;
 
-    get_pool_info(options?: ContractCallOptions): ContractCall;
+    get_add_liquidity_token_amount: InvokeFunction<[token_0_amount: BigNumberish], BN>;
 
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      options?: ContractCallOptions
-    ): ContractCall;
+    add_liquidity: InvokeFunction<[recipient: IdentityInput], BN>;
 
-    deposit(options?: ContractCallOptions): ContractCall;
+    remove_liquidity: InvokeFunction<[recipient: IdentityInput], RemoveLiquidityInfoOutput>;
 
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      options?: ContractCallOptions
-    ): ContractCall;
+    swap: InvokeFunction<
+      [amount_0_out: BigNumberish, amount_1_out: BigNumberish, recipient: IdentityInput],
+      void
+    >;
 
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      options?: ContractCallOptions
-    ): ContractCall;
+    get_tokens: InvokeFunction<[], [string, string]>;
 
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      options?: ContractCallOptions
-    ): ContractCall;
+    get_swap_with_minimum: InvokeFunction<[amount: BigNumberish], PreviewInfoOutput>;
 
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      options?: ContractCallOptions
-    ): ContractCall;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      options?: ContractCallOptions
-    ): ContractCall;
-
-    get_swap_with_minimum(amount: BigNumberish, options?: ContractCallOptions): ContractCall;
-
-    get_swap_with_maximum(amount: BigNumberish, options?: ContractCallOptions): ContractCall;
+    get_swap_with_maximum: InvokeFunction<[amount: BigNumberish], PreviewInfoOutput>;
   };
-  submit: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_pool_info(
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PoolInfoOutput>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<void>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<void>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<RemoveLiquidityInfoOutput>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-  };
-  submitResult: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    get_pool_info(
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    deposit(
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<TransactionResult<any>>;
-  };
-  dryRun: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_pool_info(
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PoolInfoOutput>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<void>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<void>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<RemoveLiquidityInfoOutput>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-  };
-  dryRunResult: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_pool_info(overrides?: Overrides & { from?: string | Promise<string> }): Promise<CallResult>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<CallResult>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-  };
-  simulate: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_pool_info(
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PoolInfoOutput>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<void>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<void>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<RemoveLiquidityInfoOutput>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<bigint>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PreviewInfoOutput>;
-  };
-  simulateResult: {
-    get_balance(
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_pool_info(overrides?: Overrides & { from?: string | Promise<string> }): Promise<CallResult>;
-
-    get_add_liquidity_token_amount(
-      eth_amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<CallResult>;
-
-    withdraw(
-      amount: BigNumberish,
-      asset_id: ContractIdInput,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    add_liquidity(
-      min_liquidity: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    remove_liquidity(
-      min_eth: BigNumberish,
-      min_tokens: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    swap_with_minimum(
-      min: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    swap_with_maximum(
-      amount: BigNumberish,
-      deadline: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_swap_with_minimum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-
-    get_swap_with_maximum(
-      amount: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<CallResult>;
-  };
-
-  get_balance(
-    asset_id: ContractIdInput,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<bigint>;
-
-  get_pool_info(
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<PoolInfoOutput>;
-
-  get_add_liquidity_token_amount(
-    eth_amount: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<bigint>;
-
-  deposit(overrides?: Overrides & { from?: string | Promise<string> }): Promise<void>;
-
-  withdraw(
-    amount: BigNumberish,
-    asset_id: ContractIdInput,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<void>;
-
-  add_liquidity(
-    min_liquidity: BigNumberish,
-    deadline: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<bigint>;
-
-  remove_liquidity(
-    min_eth: BigNumberish,
-    min_tokens: BigNumberish,
-    deadline: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<RemoveLiquidityInfoOutput>;
-
-  swap_with_minimum(
-    min: BigNumberish,
-    deadline: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<bigint>;
-
-  swap_with_maximum(
-    amount: BigNumberish,
-    deadline: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<bigint>;
-
-  get_swap_with_minimum(
-    amount: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<PreviewInfoOutput>;
-
-  get_swap_with_maximum(
-    amount: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<PreviewInfoOutput>;
 }
