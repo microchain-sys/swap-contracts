@@ -22,6 +22,11 @@ export default createConfig({
   },
   contracts: [
     {
+      name: 'REGISTRY_CONTRACT_ID',
+      path: './packages/contracts/registry_contract',
+      options: getDeployOptions(),
+    },
+    {
       name: 'ROUTER_CONTRACT_ID',
       path: './packages/contracts/router_contract',
       options: getDeployOptions(),
