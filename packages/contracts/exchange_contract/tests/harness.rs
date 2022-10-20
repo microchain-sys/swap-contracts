@@ -135,6 +135,9 @@ async fn setup() -> Fixture {
 }
 
 async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u64) {
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    println!("{:?}", pool_info.value);
+
     let _receipts = fixture.wallet
         .force_transfer_to_contract(
             &fixture.exchange_contract_id,
