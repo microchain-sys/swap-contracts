@@ -144,9 +144,9 @@ impl Router for Contract {
         }
 
         AddLiquidityOutput {
-            amount_a: 0,//amount_a,
-            amount_b: 0,//amount_b,
-            liquidity: 0,//liquidity,
+            amount_a: amount_a,
+            amount_b: amount_b,
+            liquidity: liquidity,
         }
     }
 

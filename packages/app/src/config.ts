@@ -5,7 +5,7 @@ export const FUEL_FAUCET_URL = process.env.VITE_FUEL_FAUCET_URL!;
 /** Id (address) of the deployed swayswap contract */
 export const CONTRACT_ID = process.env.VITE_CONTRACT_ID!;
 /** Id (address) of the deployed token contract */
-export const TOKEN_ID = process.env.VITE_TOKEN_ID!;
+export const TOKEN_ID = process.env.VITE_TOKEN_1_ID!;
 /** The site key is used to invoke recaptcha service on the website
  * to disable recaptcha this env should be empty or not declared */
 export const RECAPTCHA_KEY = process.env.VITE_FAUCET_RECAPTCHA_KEY!;

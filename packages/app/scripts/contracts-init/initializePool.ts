@@ -33,16 +33,23 @@ export async function initializePool(
   console.log('ETH', await wallet.getBalance(NativeAssetId));
   console.log('Token', await wallet.getBalance(tokenContract.id.toB256()));
 
+  if (ethAmount.gt(await wallet.getBalance(NativeAssetId))) {
+    throw new Error('Insufficient ETH');
+  }
+  if (tokenAmount.gt(await wallet.getBalance(tokenContract.id.toB256()))) {
+    throw new Error('Insufficient Tokens');
+  }
+
   process.stdout.write('Initialize pool\n');
 
-  await routerContract
+  const addLiq = await routerContract
     .multiCall([
-      // routerContract.functions.null().callParams({
-      //   forward: [ethAmount, NativeAssetId],
-      // }),
-      // routerContract.functions.null().callParams({
-      //   forward: [tokenAmount, tokenContract.id.toB256()],
-      // }),
+      routerContract.functions.null().callParams({
+        forward: [ethAmount, NativeAssetId],
+      }),
+      routerContract.functions.null().callParams({
+        forward: [tokenAmount, tokenContract.id.toB256()],
+      }),
       routerContract.functions.add_liquidity(
         exchangeContract.id.toB256(), // pool
         ethAmount, // amount_a_desired
@@ -54,10 +61,37 @@ export async function initializePool(
     ])
     .txParams({
       ...overrides,
-      variableOutputs: 2,
+      variableOutputs: 3,
       gasLimit: 100_000_000,
     })
     .addContracts([
       exchangeContract.id,
-    ]);
+    ])
+    .call();
+
+  console.log(addLiq);
+
+  const poolInfo = await exchangeContract.functions.get_pool_info().get();
+  console.log(poolInfo.value);
+
+  // Do a test swap
+
+  // const result = await routerContract.functions.null(
+  const result = await routerContract.functions.swap_exact_input(
+        exchangeContract.id.toB256(),
+        0,
+        { Address: { value: wallet.address.toHexString() } },
+      )
+      .callParams({
+        forward: [10, NativeAssetId],
+        gasLimit: 10_000_000,
+      })
+      .addContracts([exchangeContract.id])
+      .txParams({
+        variableOutputs: 2,
+        gasLimit: 100_000_000,
+        gasPrice: 1,
+      })
+      .call();
+  console.log(result)
 }

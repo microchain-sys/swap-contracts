@@ -11,9 +11,13 @@ dotenv.config({
   path: `./docker/${getEnvName()}`,
 });
 
-const getDeployOptions = () => ({
+const getDeployOptions = ({ salt }: { salt?: number } = {}) => ({
   gasPrice: Number(process.env.GAS_PRICE || 0),
+  salt: '0x' + (salt || 0).toString(16).padStart(64, '0'),
 });
+
+// So the addresses change each deploy
+const saltBase = Math.floor(Date.now() / 10000);
 
 export default createConfig({
   types: {
@@ -32,17 +36,38 @@ export default createConfig({
       options: getDeployOptions(),
     },
     {
-      name: 'VITE_TOKEN_ID',
+      name: 'VITE_TOKEN_1_ID',
       path: './packages/contracts/token_contract',
-      options: getDeployOptions(),
+      options: getDeployOptions({ salt: 1 + saltBase }),
     },
     {
-      name: 'VITE_CONTRACT_ID',
+      name: 'VITE_TOKEN_2_ID',
+      path: './packages/contracts/token_contract',
+      options: getDeployOptions({ salt: 2 + saltBase }),
+    },
+    {
+      name: 'VITE_EXCHANGE_1_ID',
       path: './packages/contracts/exchange_contract',
       options: (contracts) => {
-        const contractDeployed = contracts.find((c) => c.name === 'VITE_TOKEN_ID')!;
+        const contractDeployed = contracts.find((c) => c.name === 'VITE_TOKEN_1_ID')!;
         return {
-          ...getDeployOptions(),
+          ...getDeployOptions({ salt: 1 + saltBase }),
+          storageSlots: [
+            {
+              key: '0x0000000000000000000000000000000000000000000000000000000000000001',
+              value: contractDeployed.contractId,
+            },
+          ],
+        };
+      },
+    },
+    {
+      name: 'VITE_EXCHANGE_2_ID',
+      path: './packages/contracts/exchange_contract',
+      options: (contracts) => {
+        const contractDeployed = contracts.find((c) => c.name === 'VITE_TOKEN_2_ID')!;
+        return {
+          ...getDeployOptions({ salt: 2 + saltBase }),
           storageSlots: [
             {
               key: '0x0000000000000000000000000000000000000000000000000000000000000001',
