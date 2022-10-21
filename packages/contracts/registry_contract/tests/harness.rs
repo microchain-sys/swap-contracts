@@ -13,6 +13,10 @@ abigen!(TestRegistryBuilder, "out/debug/registry_contract-abi.json");
 
 abigen!(TestExchange, "../exchange_contract/out/debug/exchange_contract-abi.json");
 
+abigen!(
+    TestToken,
+    "../token_contract/out/debug/token_contract-abi.json"
+);
 
 #[tokio::test]
 async fn register_exchange() {
@@ -101,7 +105,6 @@ async fn register_exchange() {
         .unwrap();
     assert_eq!(result.value, None);
 }
-
 
 #[tokio::test]
 async fn unordered_tokens_should_fail() {
@@ -229,6 +232,130 @@ async fn test_invalid_contract() {
         .methods()
         .add_exchange_contract(Bits256(invalid_exchange_contract_id.hash().into()))
         .set_contracts(&[invalid_exchange_contract_id.clone()])
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
+}
+
+#[tokio::test]
+async fn initialized_pools_should_fail() {
+    // Provider and Wallet
+    let wallet = launch_provider_and_get_wallet().await;
+
+    // Get the contract ID and a handle to it
+    let registry_contract_id = Contract::deploy(
+        "out/debug/registry_contract.bin",
+        &wallet,
+        TxParameters::default(),
+        StorageConfiguration::new(None, None),
+    )
+    .await
+    .unwrap();
+
+    let registry_instance = TestRegistryBuilder::new(
+        registry_contract_id.to_string(),
+        wallet.clone(),
+    );
+
+    let token_contract_id = Contract::deploy(
+        "../token_contract/out/debug/token_contract.bin",
+        &wallet,
+        TxParameters::default(),
+        StorageConfiguration::new(None, None),
+    )
+    .await
+    .unwrap();
+
+    let token_instance = TestToken::new(token_contract_id.to_string(), wallet.clone());
+
+    // Initialize token contract
+    token_instance
+        .methods()
+        .initialize(100000, wallet.address().into())
+        .call()
+        .await
+        .unwrap();
+
+    // Mint some alt tokens
+    token_instance
+        .methods()
+        .mint()
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    let key = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+    let storage_slot = StorageSlot::new(key, token_contract_id.hash());
+
+    // Deploy contract and get ID
+    let exchange_contract_id = Contract::deploy_with_parameters(
+        "../exchange_contract/out/debug/exchange_contract.bin",
+        &wallet,
+        TxParameters::default(),
+        StorageConfiguration::with_manual_storage(Some(vec![storage_slot.clone()])),
+        Salt::from([3u8; 32]),
+    )
+    .await
+    .unwrap();
+
+    let exchange_instance = TestExchange::new(exchange_contract_id.to_string(), wallet.clone());
+
+    // Add Liquidity
+
+    let _receipts = wallet
+        .force_transfer_to_contract(
+            &exchange_contract_id,
+            2000,
+            BASE_ASSET_ID,
+            TxParameters::default()
+        )
+        .await;
+
+    // Deposit some Token Asset
+    let _receipts = wallet
+        .force_transfer_to_contract(
+            &exchange_contract_id,
+            2000,
+            AssetId::new(*token_contract_id.hash()),
+            TxParameters::default()
+        )
+        .await;
+
+    let result = exchange_instance
+        .methods()
+        .add_liquidity(Identity::Address(wallet.address().into()))
+        .append_variable_outputs(3)
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            None,
+            None,
+            Some(100_000_000),
+        ))
+        .call()
+        .await
+        .unwrap();
+
+
+    //////
+
+    registry_instance
+        .methods()
+        .initialize(Bits256(exchange_contract_id.hash().into()))
+        .call()
+        .await
+        .unwrap();
+
+    // Test storage
+    let is_err = registry_instance
+        .methods()
+        .add_exchange_contract(Bits256(exchange_contract_id.hash().into()))
+        .set_contracts(&[exchange_contract_id.clone()])
         .call()
         .await
         .is_err();
