@@ -641,4 +641,35 @@ async fn accrue_protocol_fees() {
     let end_token_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
 
     assert_eq!(end_token_balance - starting_token_balance, expected_output);
+
+    // Claim funds
+
+    fixture.vault_instance
+        .methods()
+        .claim_fees(Bits256(fixture.exchange_contract_id.hash().into()))
+        .set_contracts(&[fixture.exchange_contract_id.clone()])
+        .call()
+        .await
+        .unwrap();
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.token_0_protocol_fees_collected, 0);
+    assert_eq!(fee_info.value.token_1_protocol_fees_collected, 0);
+
+    let vault_token_0_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.vault_contract_id, BASE_ASSET_ID)
+        .await
+        .unwrap();
+    let vault_token_1_balance = fixture
+        .wallet
+        .get_provider()
+        .unwrap()
+        .get_contract_asset_balance(&fixture.vault_contract_id, fixture.token_asset_id)
+        .await
+        .unwrap();
+    assert_eq!(vault_token_0_balance, 10000000);
+    assert_eq!(vault_token_1_balance, 9000000);
 }

@@ -70,4 +70,5 @@ abi Exchange {
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
     #[storage(read, write)]fn remove_liquidity( recipient: Identity) -> RemoveLiquidityInfo;
     #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
+    #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64);
 }

@@ -28,7 +28,6 @@ use exchange_abi::{
     VaultInfo,
 };
 use microchain_helpers::{
-    get_msg_sender_address_or_panic,
     get_input_price,
     get_output_price,
     mutiply_div,
@@ -43,6 +42,7 @@ enum Error {
     Invariant: (),
     InsufficentLiquidityMinted: (),
     InsufficentLiquidityBurned: (),
+    MustBeCalledByVault: (),
 }
 
 impl Root for U128 {
@@ -315,6 +315,27 @@ impl Exchange for Contract {
         require(left > right || left == right, Error::Invariant); // U128 doesn't have >= yet
 
         store_reserves(balance_0, balance_1);
+    }
+
+    #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64) {
+        let sender: Result<Identity, AuthError> = msg_sender();
+        // TODO: how to support contract + address
+        // require(sender.unwrap() == storage.vault, Error::MustBeCalledByVault);
+
+        let (token0, token1) = get_tokens();
+        let (token0_vault_fees_collected, token1_vault_fees_collected)
+            = (storage.token0_vault_fees_collected, storage.token1_vault_fees_collected);
+
+        if (token0_vault_fees_collected > 0) {
+            transfer(token0_vault_fees_collected, ~ContractId::from(token0), recipient);
+            storage.token0_vault_fees_collected = 0;
+        }
+        if (token1_vault_fees_collected > 0) {
+            transfer(token1_vault_fees_collected, ~ContractId::from(token1), recipient);
+            storage.token1_vault_fees_collected = 0;
+        }
+
+        (token0_vault_fees_collected, token1_vault_fees_collected)
     }
 
     #[storage(read)]fn get_tokens() -> (b256, b256) {

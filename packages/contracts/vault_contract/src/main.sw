@@ -14,7 +14,7 @@ use std::{
     token::*,
 };
 
-use exchange_abi::{Exchange, PoolInfo, PositionInfo, PreviewInfo, RemoveLiquidityInfo};
+use exchange_abi::{Exchange};
 use vault_abi::{Vault, VaultFee};
 
 enum Error {
@@ -71,5 +71,10 @@ impl Vault for Contract {
             start_fee: start_fee,
             change_rate: change_rate,
         }
+    }
+
+    #[storage(read, write)]fn claim_fees(pool: b256) {
+        let exchange = abi(Exchange, pool);
+        exchange.withdraw_protocol_fees(Identity::ContractId(contract_id()));
     }
 }
