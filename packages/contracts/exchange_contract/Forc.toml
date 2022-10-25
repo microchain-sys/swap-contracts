@@ -7,3 +7,4 @@ name = "exchange_contract"
 [dependencies]
 exchange_abi = { path = "../exchange_abi" }
 microchain_helpers = { path = "../microchain_helpers" }
+vault_abi = { path = "../vault_abi" }

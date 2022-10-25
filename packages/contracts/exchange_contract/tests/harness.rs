@@ -1,10 +1,14 @@
-use std::{vec, str::FromStr};
+use std::{
+    vec,
+    str::FromStr,
+};
 use fuels::{
     prelude::*,
     fuels_abigen::abigen,
     signers::WalletUnlocked,
     tx::{AssetId, Bytes32, StorageSlot},
 };
+use tokio::time::{sleep, Duration};
 
 ///////////////////////////////
 // Load the Exchange Contract abi
@@ -13,20 +17,30 @@ abigen!(TestExchange, "./out/debug/exchange_contract-abi.json");
 
 ///////////////////////////////
 // Load the Token Contract abi
-///////////////////////////////T
+///////////////////////////////
 abigen!(
     TestToken,
     "../token_contract/out/debug/token_contract-abi.json"
+);
+
+///////////////////////////////
+// Load the Vault Contract abi
+///////////////////////////////
+abigen!(
+    TestVault,
+    "../vault_contract/out/debug/vault_contract-abi.json"
 );
 
 struct Fixture {
     wallet: WalletUnlocked,
     token_contract_id: Bech32ContractId,
     exchange_contract_id: Bech32ContractId,
+    vault_contract_id: Bech32ContractId,
     token_asset_id: AssetId,
     exchange_asset_id: AssetId,
     token_instance: TestToken,
     exchange_instance: TestExchange,
+    vault_instance: TestVault,
 }
 
 fn to_9_decimal(num: u64) -> u64 {
@@ -71,8 +85,18 @@ async fn setup() -> Fixture {
     .await
     .unwrap();
 
+    let vault_contract_id = Contract::deploy(
+        "../vault_contract/out/debug/vault_contract.bin",
+        &wallet,
+        TxParameters::default(),
+        StorageConfiguration::new(None, None),
+    )
+    .await
+    .unwrap();
+
     let exchange_instance = TestExchange::new(exchange_contract_id.to_string(), wallet.clone());
     let token_instance = TestToken::new(token_contract_id.to_string(), wallet.clone());
+    let vault_instance = TestVault::new(vault_contract_id.to_string(), wallet.clone());
 
     let wallet_token_amount = to_9_decimal(20000);
 
@@ -93,14 +117,24 @@ async fn setup() -> Fixture {
         .await
         .unwrap();
 
+    exchange_instance
+        .methods()
+        .initialize(Bits256(vault_contract_id.hash().into()))
+        .set_contracts(&[vault_contract_id.clone()])
+        .call()
+        .await
+        .unwrap();
+
     Fixture {
         wallet: wallet,
         token_contract_id: token_contract_id.clone(),
         exchange_contract_id: exchange_contract_id.clone(),
+        vault_contract_id: vault_contract_id,
         token_asset_id: AssetId::new(*token_contract_id.hash()),
         exchange_asset_id: AssetId::new(*exchange_contract_id.hash()),
         token_instance: token_instance,
         exchange_instance: exchange_instance,
+        vault_instance: vault_instance,
     }
 }
 
@@ -499,4 +533,112 @@ async fn burn() {
 
     assert_eq!(token_0_end_balance, token_0_starting_balance + token_0_amount - 1000);
     assert_eq!(token_1_end_balance, token_1_starting_balance + token_1_amount - 1000);
+}
+
+#[tokio::test]
+async fn accrue_protocol_fees() {
+    let fixture = setup().await;
+
+    let token_0_amount = to_9_decimal(5);
+    let token_1_amount = to_9_decimal(10);
+
+    add_liquidity(&fixture, token_0_amount, token_1_amount)
+        .await;
+
+    fixture.vault_instance
+        .methods()
+        .set_fees(10000, 1000)
+        .call()
+        .await
+        .unwrap();
+    
+    fixture.exchange_instance
+        .methods()
+        .cache_vault_fees()
+        .set_contracts(&[fixture.vault_contract_id.clone()])
+        .call()
+        .await
+        .unwrap();
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.current_fee, 10000);
+    assert_eq!(fee_info.value.change_rate, 1000);
+
+    let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    // Swap again, token0 -> token1
+
+    let input = to_9_decimal(1);
+    let expected_output = 1648613753;
+
+    let _receipt = fixture.exchange_instance
+        .methods()
+        .swap(0, expected_output, Identity::Address(fixture.wallet.address().into()))
+        .call_params(CallParameters::new(
+            Some(input),
+            None,
+            None,
+        ))
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.current_fee, 10000);
+    assert_eq!(fee_info.value.change_rate, 1000);
+    assert_eq!(fee_info.value.token_0_protocol_fees_collected, 10000000);
+    assert_eq!(fee_info.value.token_1_protocol_fees_collected, 0);
+
+    let end_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+
+    assert_eq!(end_token_balance - starting_token_balance, expected_output);
+
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.token_0_reserve, token_0_amount + (input * 99 / 100));
+    assert_eq!(pool_info.value.token_1_reserve, token_1_amount - expected_output);
+
+    // Wait, let the fee decrease to 0.9%
+    // Sleep isn't ideal for these tests, ideally the local VM would allow changing timestamps
+    sleep(Duration::from_secs(1)).await;
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.current_fee, 9000);
+
+    // Swap again, token1 -> token0
+
+    let starting_token_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+
+    let expected_output = 633116959;
+
+    let _receipt = fixture.exchange_instance
+        .methods()
+        .swap(expected_output, 0, Identity::Address(fixture.wallet.address().into()))
+        .call_params(CallParameters::new(
+            Some(input),
+            Some(fixture.token_asset_id.clone()),
+            None,
+        ))
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .unwrap();
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.token_0_protocol_fees_collected, 10000000);
+    assert_eq!(fee_info.value.token_1_protocol_fees_collected, 9000000);
+
+    let end_token_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+
+    assert_eq!(end_token_balance - starting_token_balance, expected_output);
 }

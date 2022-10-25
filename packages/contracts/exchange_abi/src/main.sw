@@ -26,12 +26,32 @@ pub struct PreviewInfo {
     has_liquidity: bool,
 }
 
+pub struct VaultInfo {
+    vault: b256,
+    token0_protocol_fees_collected: u64,
+    token1_protocol_fees_collected: u64,
+    current_fee: u16,
+    change_rate: u16,
+    update_time: u32,
+}
+
+// Packed into a single 8-byte slot
+pub struct VaultFee {
+    // These values should be divided by 1,000,000 to get the rate. So 10,000 = 1%
+    stored_fee: u16, // 1 byte
+    change_rate: u16, // 1 byte
+    // TODO: directional changes
+    // fee_increasing: bool, // 1 byte
+    update_time: u32, // 4 bytes
+}
+
 abi Exchange {
     ////////////////////
     // Read only
     ////////////////////
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_pool_info() -> PoolInfo;
+    #[storage(read)]fn get_vault_info() -> VaultInfo;
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64;
     /// Get the minimum amount of coins that will be received for a swap_with_minimum.
@@ -43,6 +63,8 @@ abi Exchange {
     ////////////////////
     // Actions
     ////////////////////
+    #[storage(read, write)]fn initialize(new_vault: b256);
+    #[storage(read, write)]fn cache_vault_fees();
     /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
     #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64;
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.

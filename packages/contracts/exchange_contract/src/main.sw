@@ -5,6 +5,7 @@ use std::{
     assert::assert,
     block::*,
     chain::auth::*,
+    constants::ZERO_B256,
     context::{*, call_frames::*},
     contract_id::ContractId,
     hash::*,
@@ -17,15 +18,25 @@ use std::{
     u128::U128,
 };
 
-use exchange_abi::{Exchange, PoolInfo, PositionInfo, PreviewInfo, RemoveLiquidityInfo};
+use exchange_abi::{
+    Exchange,
+    PoolInfo,
+    PositionInfo,
+    PreviewInfo,
+    RemoveLiquidityInfo,
+    VaultFee,
+    VaultInfo,
+};
 use microchain_helpers::{
     get_msg_sender_address_or_panic,
     get_input_price,
     get_output_price,
     mutiply_div,
 };
+use vault_abi::Vault;
 
 enum Error {
+    AlreadyInitialized: (),
     InsufficentOutput: (),
     InsufficentLiquidity: (),
     InsufficentInput: (),
@@ -69,7 +80,15 @@ const MINIMUM_LIQUIDITY = 1000;
 storage {
     token0_reserve: u64 = 0,
     token1_reserve: u64 = 0,
+    token0_vault_fees_collected: u64 = 0,
+    token1_vault_fees_collected: u64 = 0,
     lp_token_supply: u64 = 0,
+    vault: b256 = ZERO_B256,
+    vault_fee: VaultFee = VaultFee {
+        stored_fee: 0,
+        change_rate: 0,
+        update_time: 0,
+    },
 }
 
 ////////////////////////////////////////
@@ -80,13 +99,20 @@ storage {
     let (token0, token1) = get_tokens();
     let mut amount = 0;
     if (asset_id == token0) {
-        amount = this_balance(~ContractId::from(token0)) - token_0_reserve;
+        amount = this_balance(~ContractId::from(token0)) - token_0_reserve - storage.token0_vault_fees_collected;
     } else if (asset_id == token1) {
-        amount = this_balance(~ContractId::from(token1)) - token_1_reserve;
+        amount = this_balance(~ContractId::from(token1)) - token_1_reserve - storage.token1_vault_fees_collected;
     } else {
         revert(0);
     }
     amount
+}
+
+#[storage(read)]fn get_pool_balance() -> (u64, u64) {
+    let (token0, token1) = get_tokens();
+    let balance_0 = this_balance(~ContractId::from(token0)) - storage.token0_vault_fees_collected;
+    let balance_1 = this_balance(~ContractId::from(token1)) - storage.token1_vault_fees_collected;
+    (balance_0, balance_1)
 }
 
 #[storage(read, write)]fn store_reserves(reserve0: u64, reserve1: u64) {
@@ -101,16 +127,66 @@ storage {
     )
 }
 
+#[storage(read, write)]fn process_protocol_fee(amount: u64, is_token0: bool) -> (u64, u64) {
+    let fee_info = storage.vault_fee;
+    let current_fee = fee_info.stored_fee - (fee_info.change_rate * (timestamp() - fee_info.update_time));
+    // let fee = amount * current_fee / 1_000_000;
+    let fee = (~U128::from(0, amount) * ~U128::from(0, current_fee) / ~U128::from(0, 1_000_000))
+        .as_u64()
+        .unwrap();
+
+    if (fee > 0) {
+        if (is_token0) {
+            storage.token0_vault_fees_collected = storage.token0_vault_fees_collected + fee;
+        } else {
+            storage.token1_vault_fees_collected = storage.token1_vault_fees_collected + fee;
+        }
+    }
+    (amount - fee, fee)
+}
+
+#[storage(write)]fn cache_vault_fees(vault: b256) {
+    let vault = abi(Vault, vault);
+    let vault_fees = vault.get_fees();
+    storage.vault_fee = VaultFee {
+        stored_fee: vault_fees.current_fee,
+        change_rate: vault_fees.change_rate,
+        update_time: timestamp(),
+    };
+}
+
 // ////////////////////////////////////////
 // // ABI definitions
 // ////////////////////////////////////////
 impl Exchange for Contract {
+    #[storage(read, write)]fn initialize(new_vault: b256) {
+        require(storage.vault == ZERO_B256, Error::AlreadyInitialized);
+        storage.vault = new_vault;
+        cache_vault_fees(new_vault);
+    }
+
     #[storage(read)]fn get_pool_info() -> PoolInfo {
         PoolInfo {
             token_0_reserve: storage.token0_reserve,
             token_1_reserve: storage.token1_reserve,
             lp_token_supply: storage.lp_token_supply,
         }
+    }
+
+    #[storage(read)]fn get_vault_info() -> VaultInfo {
+        let fees = storage.vault_fee;
+        VaultInfo {
+            vault: storage.vault,
+            token0_protocol_fees_collected: storage.token0_vault_fees_collected,
+            token1_protocol_fees_collected: storage.token1_vault_fees_collected,
+            current_fee: fees.stored_fee - (fees.change_rate * (timestamp() - fees.update_time)),
+            change_rate: fees.change_rate,
+            update_time: fees.update_time,
+        }
+    }
+
+    #[storage(read, write)]fn cache_vault_fees() {
+        cache_vault_fees(storage.vault);
     }
 
     #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64 {
@@ -128,8 +204,7 @@ impl Exchange for Contract {
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
 
-        let current_token_0_amount = this_balance(~ContractId::from(token0)) - token_0_reserve;
-        let current_token_1_amount = this_balance(~ContractId::from(token1)) - token_1_reserve;
+        let (current_token_0_amount, current_token_1_amount) = get_pool_balance();
 
         assert(current_token_0_amount > 0);
         assert(current_token_1_amount > 0);
@@ -176,8 +251,7 @@ impl Exchange for Contract {
         let token_0_reserve = storage.token0_reserve;
         let token_1_reserve = storage.token1_reserve;
         let total_liquidity = storage.lp_token_supply;
-        let current_token_0_amount = this_balance(~ContractId::from(token0));
-        let current_token_1_amount = this_balance(~ContractId::from(token1));
+        let (current_token_0_amount, current_token_1_amount) = get_pool_balance();
 
         let amount0 = lp_tokens * current_token_0_amount / total_liquidity; // using balances ensures pro-rata distribution
         let amount1 = lp_tokens * current_token_1_amount / total_liquidity; // using balances ensures pro-rata distribution
@@ -212,20 +286,26 @@ impl Exchange for Contract {
         if (amount_1_out > 0) {
             transfer(amount_1_out, ~ContractId::from(token1), recipient);
         }
-        let balance_0 = this_balance(~ContractId::from(token0));
-        let balance_1 = this_balance(~ContractId::from(token1));
+        // Should be the following line, but `let mut` doesn't work with destructuring
+        // let (balance_0, balance_1) = get_pool_balance();
+        let mut balance_0 = this_balance(~ContractId::from(token0)) - storage.token0_vault_fees_collected;
+        let mut balance_1 = this_balance(~ContractId::from(token1)) - storage.token1_vault_fees_collected;
 
-        let amount0_in = if balance_0 > token_0_reserve - amount_0_out {
-            balance_0 - (token_0_reserve - amount_0_out)
+        let (amount0_in, amount0_protocol_fee) = if balance_0 > token_0_reserve - amount_0_out {
+                process_protocol_fee(balance_0 - (token_0_reserve - amount_0_out), true)
             } else {
-                0
+                (0, 0)
             };
-        let amount1_in = if balance_1 > token_1_reserve - amount_1_out {
-            balance_1 - (token_1_reserve - amount_1_out)
+        let (amount1_in, amount1_protocol_fee) = if balance_1 > token_1_reserve - amount_1_out {
+                process_protocol_fee(balance_1 - (token_1_reserve - amount_1_out), false)
             } else {
-                0
+                (0, 0)
             };
+
         require(amount0_in > 0 || amount1_in > 0, Error::InsufficentInput);
+
+        balance_0 = balance_0 - amount0_protocol_fee;
+        balance_1 = balance_1 - amount1_protocol_fee;
 
         let balance0_adjusted = ~U128::from(0, balance_0) * ~U128::from(0, 1000) - (~U128::from(0, amount0_in) * ~U128::from(0, 3));
         let balance1_adjusted = ~U128::from(0, balance_1) * ~U128::from(0, 1000) - (~U128::from(0, amount1_in) * ~U128::from(0, 3));
