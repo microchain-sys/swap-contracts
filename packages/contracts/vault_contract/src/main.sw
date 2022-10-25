@@ -45,11 +45,17 @@ storage {
 impl Vault for Contract {
     #[storage(read)]fn get_fees() -> VaultFee {
         let fees = storage.fees;
+        let decrease_since_change = fees.change_rate * (timestamp() - fees.start_time);
+        let current_fee = if decrease_since_change > fees.start_fee {
+            0
+        } else {
+            fees.start_fee - decrease_since_change
+        };
 
         VaultFee {
             start_time: fees.start_time,
             start_fee: fees.start_fee,
-            current_fee: fees.start_fee - (fees.change_rate * (timestamp() - fees.start_time)),
+            current_fee: current_fee,
             change_rate: fees.change_rate,
         }
     }

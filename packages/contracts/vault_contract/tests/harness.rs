@@ -1,13 +1,10 @@
 use std::{
-    vec,
-    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 use fuels::{
     prelude::*,
     fuels_abigen::abigen,
     signers::WalletUnlocked,
-    tx::{AssetId, Bytes32, StorageSlot},
 };
 use tokio::time::{sleep, Duration};
 
@@ -59,7 +56,7 @@ async fn set_fee() {
 
     // Add liquidity for the second time. Keeping the proportion 1:2
     // It should return the same amount of LP as the amount of ETH deposited
-    let result = fixture.vault_instance
+    let _result = fixture.vault_instance
         .methods()
         .set_fees(100, 1)
         .call()
@@ -79,11 +76,33 @@ async fn set_fee() {
 
     sleep(Duration::from_secs(2)).await;
 
-
     let returned_fees = fixture.vault_instance.methods().get_fees().call().await.unwrap();
 
     assert!(now.as_secs() - returned_fees.value.start_time as u64 <= 1);
     assert_eq!(returned_fees.value.start_fee, 100);
     assert_eq!(returned_fees.value.current_fee, 98);
     assert_eq!(returned_fees.value.change_rate, 1);
+}
+
+#[tokio::test]
+async fn protocol_fees_minimum_zero() {
+    let fixture = setup().await;
+
+    // Add liquidity for the second time. Keeping the proportion 1:2
+    // It should return the same amount of LP as the amount of ETH deposited
+    let _result = fixture.vault_instance
+        .methods()
+        .set_fees(1_000, 10_000)
+        .call()
+        .await
+        .unwrap();
+
+
+    sleep(Duration::from_secs(1)).await;
+
+    let returned_fees = fixture.vault_instance.methods().get_fees().call().await.unwrap();
+
+    assert_eq!(returned_fees.value.start_fee, 1_000);
+    assert_eq!(returned_fees.value.current_fee, 0);
+    assert_eq!(returned_fees.value.change_rate, 10_000);
 }

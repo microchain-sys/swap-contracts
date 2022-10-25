@@ -673,3 +673,34 @@ async fn accrue_protocol_fees() {
     assert_eq!(vault_token_0_balance, 10000000);
     assert_eq!(vault_token_1_balance, 9000000);
 }
+
+#[tokio::test]
+async fn protocol_fees_minimum_zero() {
+    let fixture = setup().await;
+
+    fixture.vault_instance
+        .methods()
+        .set_fees(1_000, 10_000)
+        .call()
+        .await
+        .unwrap();
+
+    fixture.exchange_instance
+        .methods()
+        .cache_vault_fees()
+        .set_contracts(&[fixture.vault_contract_id.clone()])
+        .call()
+        .await
+        .unwrap();
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.current_fee, 1_000);
+    assert_eq!(fee_info.value.change_rate, 10_000);
+
+    // Wait, the fee should decrease to 0 over this time
+    // Sleep isn't ideal for these tests, ideally the local VM would allow changing timestamps
+    sleep(Duration::from_secs(1)).await;
+
+    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
+    assert_eq!(fee_info.value.current_fee, 0);
+}

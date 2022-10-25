@@ -127,10 +127,14 @@ storage {
     )
 }
 
-#[storage(read, write)]fn process_protocol_fee(amount: u64, is_token0: bool) -> (u64, u64) {
+#[storage(read)]fn get_current_fee() -> u64 {
     let fee_info = storage.vault_fee;
-    let current_fee = fee_info.stored_fee - (fee_info.change_rate * (timestamp() - fee_info.update_time));
-    // let fee = amount * current_fee / 1_000_000;
+    let decrease_since_storage = fee_info.change_rate * (timestamp() - fee_info.update_time);
+    if decrease_since_storage > fee_info.stored_fee { 0 } else { fee_info.stored_fee - decrease_since_storage }
+}
+
+#[storage(read, write)]fn process_protocol_fee(amount: u64, is_token0: bool) -> (u64, u64) {
+    let current_fee = get_current_fee();
     let fee = (~U128::from(0, amount) * ~U128::from(0, current_fee) / ~U128::from(0, 1_000_000))
         .as_u64()
         .unwrap();
@@ -179,7 +183,7 @@ impl Exchange for Contract {
             vault: storage.vault,
             token0_protocol_fees_collected: storage.token0_vault_fees_collected,
             token1_protocol_fees_collected: storage.token1_vault_fees_collected,
-            current_fee: fees.stored_fee - (fees.change_rate * (timestamp() - fees.update_time)),
+            current_fee: get_current_fee(),
             change_rate: fees.change_rate,
             update_time: fees.update_time,
         }
