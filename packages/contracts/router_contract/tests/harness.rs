@@ -383,6 +383,30 @@ async fn swap_exact_input_0() {
 
     let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_a_asset_id).await.unwrap();
 
+    let is_err = fixture.router_instance
+        .methods()
+        .swap_exact_input(
+            Bits256(fixture.exchange_a_contract_id.hash().into()),
+            expected_amount + 1,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(swap_amount),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[fixture.exchange_a_contract_id.clone()])
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
+
     let result = fixture.router_instance
         .methods()
         .swap_exact_input(
@@ -439,6 +463,32 @@ async fn swap_exact_output_0() {
 
     let starting_eth_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
     let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_a_asset_id).await.unwrap();
+
+    // Check that max_input reverts
+    let is_err = fixture.router_instance
+        .methods()
+        .swap_exact_output(
+            Bits256(fixture.exchange_a_contract_id.hash().into()),
+            output_amount,
+            expected_input - 1,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(provided_input),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[fixture.exchange_a_contract_id.clone()])
+        .append_variable_outputs(3)
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
 
     let result = fixture.router_instance
         .methods()
@@ -503,6 +553,36 @@ async fn swap_exact_input_multi() {
         .await;
 
     let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_b_asset_id).await.unwrap();
+
+    let is_err = fixture.router_instance
+        .methods()
+        .swap_exact_input_multihop(
+            vec![
+                Bits256(fixture.exchange_a_contract_id.hash().into()),
+                Bits256(fixture.exchange_b_contract_id.hash().into()),
+            ],
+            expected_amount + 1,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(swap_amount),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[
+            fixture.exchange_a_contract_id.clone(),
+            fixture.exchange_b_contract_id.clone(),
+        ])
+        .append_variable_outputs(1)
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
 
     let result = fixture.router_instance
         .methods()
@@ -573,6 +653,38 @@ async fn swap_exact_output_multi() {
 
     let starting_eth_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
     let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_b_asset_id).await.unwrap();
+
+
+    let is_err = fixture.router_instance
+        .methods()
+        .swap_exact_output_multihop(
+            vec![
+                Bits256(fixture.exchange_a_contract_id.hash().into()),
+                Bits256(fixture.exchange_b_contract_id.hash().into()),
+            ],
+            output_amount,
+            expected_input - 1,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            Some(input_amount),
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[
+            fixture.exchange_a_contract_id.clone(),
+            fixture.exchange_b_contract_id.clone(),
+        ])
+        .append_variable_outputs(2)
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
 
     let result = fixture.router_instance
         .methods()

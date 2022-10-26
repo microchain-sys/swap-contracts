@@ -179,6 +179,9 @@ impl Router for Contract {
             (get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
         };
 
+        let output_amount = if token0 == input_asset { out1 } else { out0 };
+        require(output_amount >= min_amount_out, Error::InsufficentOutput);
+
         exchange.swap{
             asset_id: input_asset,
             coins: msg_amount(),
@@ -186,7 +189,7 @@ impl Router for Contract {
 
         SwapOutput {
             input_amount: msg_amount(),
-            output_amount: if token0 == input_asset { out1 } else { out0 },
+            output_amount: output_amount,
         }
     }
 
@@ -218,6 +221,8 @@ impl Router for Contract {
             let denominator = percision - ~U128::from(0, fee_info.current_fee);
             input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
         }
+
+        require(input_amount_with_fee <= max_amount_in, Error::ExcessiveInput);
 
         exchange.swap{
             asset_id: input_asset,
@@ -293,6 +298,7 @@ impl Router for Contract {
 
             i += 1;
         }
+        require(output_amount >= min_amount_out, Error::InsufficentOutput);
 
         SwapOutput {
             input_amount: msg_amount(),
@@ -364,6 +370,8 @@ impl Router for Contract {
             input_amounts.set(j, input_amount_with_fee);
             if (j > 0) {
                 output_amounts.set(j - 1, input_amount_with_fee);
+            } else {
+                require(input_amount_with_fee <= max_amount_in, Error::ExcessiveInput);
             }
 
             i -= 1;
