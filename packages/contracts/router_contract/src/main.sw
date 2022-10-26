@@ -23,6 +23,7 @@ use std::{
         transfer,
         force_transfer_to_contract,
     },
+    u128::U128,
     vec::*,
 };
 
@@ -163,10 +164,19 @@ impl Router for Contract {
 
         require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
 
+        let fee_info = exchange.get_fee_info();
+        let mut input = msg_amount();
+        if (fee_info.current_fee > 0) {
+            let fee = (~U128::from(0, input) * ~U128::from(0, fee_info.current_fee) / ~U128::from(0, 1_000_000))
+                .as_u64()
+                .unwrap();
+            input = input - fee;
+        }
+
         let (out0, out1) = if token0 == input_asset {
-            (0, get_input_price(msg_amount(), pool_info.token_0_reserve, pool_info.token_1_reserve))
+            (0, get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve))
         } else {
-            (get_input_price(msg_amount(), pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
+            (get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
         };
 
         exchange.swap{
@@ -200,18 +210,27 @@ impl Router for Contract {
             (get_output_price(amount_out, pool_info.token_1_reserve, pool_info.token_0_reserve), amount_out, 0)
         };
 
+        let fee_info = exchange.get_fee_info();
+        let mut input_amount_with_fee = input_amount;
+        if (fee_info.current_fee > 0) {
+            let percision = ~U128::from(0, 1_000_000);
+            let numerator = ~U128::from(0, input_amount) * percision;
+            let denominator = percision - ~U128::from(0, fee_info.current_fee);
+            input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
+        }
+
         exchange.swap{
             asset_id: input_asset,
-            coins: input_amount,
+            coins: input_amount_with_fee,
         }(out0, out1, recipient);
 
-        if (msg_amount() > input_amount) {
+        if (msg_amount() > input_amount_with_fee) {
             let sender_identity = msg_sender().unwrap();
-            transfer(msg_amount() - input_amount, msg_asset_id(), sender_identity);
+            transfer(msg_amount() - input_amount_with_fee, msg_asset_id(), sender_identity);
         }
 
         SwapOutput {
-            input_amount: input_amount,
+            input_amount: input_amount_with_fee,
             output_amount: if token0 == input_asset { out1 } else { out0 },
         }
     }
@@ -228,8 +247,6 @@ impl Router for Contract {
 
         require(pools.len() > 0, Error::InvalidInput);
 
-        // force_transfer_to_contract(input_amount, msg_asset_id(), ~ContractId::from(pools.get(0).unwrap()));
-
         let mut i = 0;
         while i < pools.len() {
             let pool_id = pools.get(i).unwrap();
@@ -239,10 +256,19 @@ impl Router for Contract {
 
             require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
 
+            let fee_info = exchange.get_fee_info();
+            let mut input = output_amount;
+            if (fee_info.current_fee > 0) {
+                let fee = (~U128::from(0, input) * ~U128::from(0, fee_info.current_fee) / ~U128::from(0, 1_000_000))
+                    .as_u64()
+                    .unwrap();
+                input = input - fee;
+            }
+
             let (out0, out1) = if token0 == input_asset {
-                (0, get_input_price(output_amount, pool_info.token_0_reserve, pool_info.token_1_reserve))
+                (0, get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve))
             } else {
-                (get_input_price(output_amount, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
+                (get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
             };
 
             let swap_recipient = if i == pools.len() - 1 {
@@ -326,9 +352,18 @@ impl Router for Contract {
                 get_output_price(pool_output_amount, pool_info.token_1_reserve, pool_info.token_0_reserve)
             };
 
-            input_amounts.set(j, input_amount);
+            let fee_info = exchange.get_fee_info();
+            let mut input_amount_with_fee = input_amount;
+            if (fee_info.current_fee > 0) {
+                let percision = ~U128::from(0, 1_000_000);
+                let numerator = ~U128::from(0, input_amount) * percision;
+                let denominator = percision - ~U128::from(0, fee_info.current_fee);
+                input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
+            }
+
+            input_amounts.set(j, input_amount_with_fee);
             if (j > 0) {
-                output_amounts.set(j - 1, input_amount);
+                output_amounts.set(j - 1, input_amount_with_fee);
             }
 
             i -= 1;

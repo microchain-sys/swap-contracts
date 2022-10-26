@@ -20,6 +20,7 @@ use std::{
 
 use exchange_abi::{
     Exchange,
+    FeeInfo,
     PoolInfo,
     PositionInfo,
     PreviewInfo,
@@ -134,12 +135,14 @@ storage {
 }
 
 #[storage(read, write)]fn process_protocol_fee(amount: u64, is_token0: bool) -> (u64, u64) {
-    let current_fee = get_current_fee();
-    let fee = (~U128::from(0, amount) * ~U128::from(0, current_fee) / ~U128::from(0, 1_000_000))
-        .as_u64()
-        .unwrap();
+    let current_fee_rate = get_current_fee();
+    let mut fee = 0;
 
-    if (fee > 0) {
+    if (current_fee_rate > 0) {
+        fee = (~U128::from(0, amount) * ~U128::from(0, current_fee_rate) / ~U128::from(0, 1_000_000))
+            .as_u64()
+            .unwrap();
+
         if (is_token0) {
             storage.token0_vault_fees_collected = storage.token0_vault_fees_collected + fee;
         } else {
@@ -183,6 +186,15 @@ impl Exchange for Contract {
             vault: storage.vault,
             token0_protocol_fees_collected: storage.token0_vault_fees_collected,
             token1_protocol_fees_collected: storage.token1_vault_fees_collected,
+            current_fee: get_current_fee(),
+            change_rate: fees.change_rate,
+            update_time: fees.update_time,
+        }
+    }
+
+    #[storage(read)]fn get_fee_info() -> FeeInfo {
+        let fees = storage.vault_fee;
+        FeeInfo {
             current_fee: get_current_fee(),
             change_rate: fees.change_rate,
             update_time: fees.update_time,

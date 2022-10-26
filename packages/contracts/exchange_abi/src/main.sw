@@ -35,6 +35,12 @@ pub struct VaultInfo {
     update_time: u32,
 }
 
+pub struct FeeInfo {
+    current_fee: u16,
+    change_rate: u16,
+    update_time: u32,
+}
+
 // Packed into a single 8-byte slot
 pub struct VaultFee {
     // These values should be divided by 1,000,000 to get the rate. So 10,000 = 1%
@@ -52,6 +58,7 @@ abi Exchange {
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     #[storage(read)]fn get_vault_info() -> VaultInfo;
+    #[storage(read)]fn get_fee_info() -> FeeInfo;
     /// Get information on the liquidity pool.
     #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64;
     /// Get the minimum amount of coins that will be received for a swap_with_minimum.
