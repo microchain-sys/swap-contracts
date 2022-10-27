@@ -22,14 +22,7 @@ abigen!(
     TestToken,
     "../token_contract/out/debug/token_contract-abi.json"
 );
-
-///////////////////////////////
-// Load the Vault Contract abi
-///////////////////////////////
-abigen!(
-    TestVault,
-    "../vault_contract/out/debug/vault_contract-abi.json"
-);
+abigen!(Vault, "../vault_contract/out/debug/vault_contract-abi.json");
 
 struct Fixture {
     wallet: WalletUnlocked,
@@ -40,7 +33,7 @@ struct Fixture {
     exchange_asset_id: AssetId,
     token_instance: TestToken,
     exchange_instance: TestExchange,
-    vault_instance: TestVault,
+    vault_instance: Vault,
 }
 
 fn to_9_decimal(num: u64) -> u64 {
@@ -54,7 +47,7 @@ async fn setup() -> Fixture {
     let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(amount));
   
     let mut wallets = launch_custom_provider_and_get_wallets(config, None).await;
-    let wallet = wallets.pop().unwrap();
+    let wallet = wallets.get(0).unwrap().clone();
     // let wallet = launch_provider_and_get_wallet().await;
 
     //////////////////////////////////////////
@@ -96,7 +89,7 @@ async fn setup() -> Fixture {
 
     let exchange_instance = TestExchange::new(exchange_contract_id.to_string(), wallet.clone());
     let token_instance = TestToken::new(token_contract_id.to_string(), wallet.clone());
-    let vault_instance = TestVault::new(vault_contract_id.to_string(), wallet.clone());
+    let vault_instance = Vault::new(vault_contract_id.to_string(), wallet.clone());
 
     let wallet_token_amount = to_9_decimal(20000);
 
@@ -672,6 +665,19 @@ async fn accrue_protocol_fees() {
         .unwrap();
     assert_eq!(vault_token_0_balance, 10000000);
     assert_eq!(vault_token_1_balance, 9000000);
+}
+
+#[tokio::test]
+async fn non_vault_claim_will_fail() {
+    let fixture = setup().await;
+
+    let is_err = fixture.exchange_instance
+        .methods()
+        .withdraw_protocol_fees(Identity::Address(fixture.wallet.address().into()))
+        .call()
+        .await
+        .is_err();
+    assert!(is_err);
 }
 
 #[tokio::test]

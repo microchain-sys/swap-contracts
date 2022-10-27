@@ -29,9 +29,7 @@ use exchange_abi::{
     VaultInfo,
 };
 use microchain_helpers::{
-    get_input_price,
-    get_output_price,
-    mutiply_div,
+    identity_to_b256,
 };
 use vault_abi::Vault;
 
@@ -327,9 +325,8 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64) {
-        let sender: Result<Identity, AuthError> = msg_sender();
-        // TODO: how to support contract + address
-        // require(sender.unwrap() == storage.vault, Error::MustBeCalledByVault);
+        let sender: Identity = msg_sender().unwrap();
+        require(identity_to_b256(sender) == storage.vault, Error::MustBeCalledByVault);
 
         let (token0, token1) = get_tokens();
         let (token0_vault_fees_collected, token1_vault_fees_collected)

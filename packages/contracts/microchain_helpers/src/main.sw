@@ -60,6 +60,13 @@ pub fn get_output_price(output_amount: u64, input_reserve: u64, output_reserve: 
     amount_in.as_u64().unwrap()
 }
 
+pub fn identity_to_b256(identity: Identity) -> b256 {
+    match identity {
+        Identity::Address(address) => address.into(),
+        Identity::ContractId(cid) => cid.into(),
+    }
+}
+
 pub fn quote(amount_a: u64, reserve_a: u64, reserve_b: u64) -> u64 {
     require(amount_a > 0, Error::InsufficentAmount());
     require(reserve_a > 0 && reserve_b > 0, Error::InsufficentReserves);
