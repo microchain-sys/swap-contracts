@@ -205,13 +205,6 @@ impl Exchange for Contract {
         cache_vault_fees(storage.vault);
     }
 
-    #[storage(read)]fn get_add_liquidity_token_amount(token_0_amount: u64) -> u64 {
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-        let token_1_amount = mutiply_div(token_0_amount, token_1_reserve, token_0_reserve);
-        token_1_amount
-    }
-
     #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64 {
         let (token0, token1) = get_tokens();
 
@@ -356,44 +349,5 @@ impl Exchange for Contract {
 
     #[storage(read)]fn get_tokens() -> (b256, b256) {
         get_tokens()
-    }
-
-    #[storage(read)]fn get_swap_with_minimum(amount: u64) -> PreviewInfo {
-        let (token0,) = get_tokens();
-
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-        let mut sold = 0;
-        let mut has_liquidity = true;
-        if (msg_asset_id().into() == token0) {
-            sold = get_input_price(amount, token_0_reserve, token_1_reserve);
-            has_liquidity = sold < token_1_reserve;
-        } else {
-            sold = get_input_price(amount, token_1_reserve, token_0_reserve);
-            has_liquidity = sold < token_0_reserve;
-        }
-        PreviewInfo {
-            amount: sold,
-            has_liquidity: has_liquidity,
-        }
-    }
-
-    #[storage(read)]fn get_swap_with_maximum(amount: u64) -> PreviewInfo {
-        let (token0, token1) = get_tokens();
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-        let mut sold = 0;
-        let mut has_liquidity = true;
-        if (msg_asset_id().into() == token0) {
-            sold = get_output_price(amount, token_0_reserve, token_1_reserve);
-            has_liquidity = sold < token_0_reserve;
-        } else {
-            sold = get_output_price(amount, token_1_reserve, token_0_reserve);
-            has_liquidity = sold < token_1_reserve;
-        }
-        PreviewInfo {
-            amount: sold,
-            has_liquidity: has_liquidity,
-        }
     }
 }
