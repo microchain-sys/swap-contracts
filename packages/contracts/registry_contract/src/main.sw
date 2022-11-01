@@ -51,6 +51,9 @@ impl PoolRegistry for Contract {
         let (token0, token1) = exchange.get_tokens();
         require(token0 < token1, Error::UnorderedTokens);
 
+        let exchange = storage.pools.get((token0, token1));
+        //sdfsd
+
         let pool_info = exchange.get_pool_info();
         require(pool_info.lp_token_supply == 0, Error::PoolInitialized);
 

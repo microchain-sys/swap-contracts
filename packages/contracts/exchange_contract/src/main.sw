@@ -10,6 +10,7 @@ use std::{
     contract_id::ContractId,
     hash::*,
     identity::Identity,
+    logging::log,
     math::*,
     result::*,
     revert::revert,
@@ -20,12 +21,15 @@ use std::{
 
 use exchange_abi::{
     Exchange,
+    Swap,
+    UpdateReserves,
+    LiquidityAdded,
+    LiquidityRemoved,
+    ProtocolFeeCollected,
+    ProtocolFeeWithdrawn,
     FeeInfo,
     PoolInfo,
-    PositionInfo,
-    PreviewInfo,
     RemoveLiquidityInfo,
-    VaultFee,
     VaultInfo,
 };
 use microchain_helpers::{
@@ -76,6 +80,16 @@ const MINIMUM_LIQUIDITY = 1000;
 // Storage declarations
 ////////////////////////////////////////
 
+// Packed into a single 8-byte slot
+struct VaultFee {
+    // These values should be divided by 1,000,000 to get the rate. So 10,000 = 1%
+    stored_fee: u16, // 1 byte
+    change_rate: u16, // 1 byte
+    // TODO: directional changes
+    // fee_increasing: bool, // 1 byte
+    update_time: u32, // 4 bytes
+}
+
 storage {
     token0_reserve: u64 = 0,
     token1_reserve: u64 = 0,
@@ -117,6 +131,11 @@ storage {
 #[storage(read, write)]fn store_reserves(reserve0: u64, reserve1: u64) {
     storage.token0_reserve = reserve0;
     storage.token1_reserve = reserve1;
+
+    log(UpdateReserves {
+        amount_0: reserve0,
+        amount_1: reserve1,
+    })
 }
 
 #[storage(read)]fn get_tokens() -> (b256, b256) {
@@ -140,12 +159,26 @@ storage {
         fee = (~U128::from(0, amount) * ~U128::from(0, current_fee_rate) / ~U128::from(0, 1_000_000))
             .as_u64()
             .unwrap();
+        let sender: b256 = identity_to_b256(msg_sender().unwrap());
 
         if (is_token0) {
             storage.token0_vault_fees_collected = storage.token0_vault_fees_collected + fee;
+
+            log(ProtocolFeeCollected {
+                sender: sender,
+                amount_0: fee,
+                amount_1: 0,
+            });
         } else {
             storage.token1_vault_fees_collected = storage.token1_vault_fees_collected + fee;
+
+            log(ProtocolFeeCollected {
+                sender: sender,
+                amount_0: 0,
+                amount_1: fee,
+            });
         }
+
     }
     (amount - fee, fee)
 }
@@ -241,10 +274,27 @@ impl Exchange for Contract {
             storage.lp_token_supply = initial_liquidity + MINIMUM_LIQUIDITY;
 
             minted = initial_liquidity;
+
+            // Log the liquidity that's burned
+            log(LiquidityAdded {
+                sender: identity_to_b256(msg_sender().unwrap()),
+                amount_0: 0,
+                amount_1: 0,
+                lp_tokens: MINIMUM_LIQUIDITY,
+                recipient: ~b256::min(),
+            });
         };
         require(minted > 0, Error::InsufficentLiquidityMinted);
 
         transfer(minted, contract_id(), recipient);
+
+        log(LiquidityAdded {
+            sender: identity_to_b256(msg_sender().unwrap()),
+            amount_0: current_token_0_amount - token_0_reserve,
+            amount_1: current_token_1_amount - token_1_reserve,
+            lp_tokens: minted,
+            recipient: identity_to_b256(recipient),
+        });
 
         minted
     }
@@ -271,6 +321,14 @@ impl Exchange for Contract {
         transfer(amount1, ~ContractId::from(token1), recipient);
 
         store_reserves(current_token_0_amount - amount0, current_token_1_amount - amount1);
+
+        log(LiquidityRemoved {
+            sender: identity_to_b256(msg_sender().unwrap()),
+            amount_0: amount0,
+            amount_1: amount1,
+            lp_tokens: lp_tokens,
+            recipient: identity_to_b256(recipient),
+        });
 
         RemoveLiquidityInfo {
             token_0_amount: amount0,
@@ -322,6 +380,15 @@ impl Exchange for Contract {
         require(left > right || left == right, Error::Invariant); // U128 doesn't have >= yet
 
         store_reserves(balance_0, balance_1);
+
+        log(Swap {
+            sender: identity_to_b256(msg_sender().unwrap()),
+            amount_0_in: amount0_in,
+            amount_1_in: amount1_in,
+            amount_0_out: amount_0_out,
+            amount_1_out: amount_1_out,
+            recipient: identity_to_b256(recipient),
+        });
     }
 
     #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64) {
@@ -340,6 +407,11 @@ impl Exchange for Contract {
             transfer(token1_vault_fees_collected, ~ContractId::from(token1), recipient);
             storage.token1_vault_fees_collected = 0;
         }
+
+        log(ProtocolFeeWithdrawn {
+            amount_0: token0_vault_fees_collected,
+            amount_1: token1_vault_fees_collected,
+        });
 
         (token0_vault_fees_collected, token1_vault_fees_collected)
     }

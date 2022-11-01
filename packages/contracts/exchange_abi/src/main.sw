@@ -5,12 +5,53 @@ use std::{
     identity::Identity,
 };
 
-pub struct RemoveLiquidityInfo {
-    token_0_amount: u64,
-    token_1_amount: u64,
+// Events
+
+pub struct LiquidityAdded {
+    sender: b256,
+    amount_0: u64,
+    amount_1: u64,
+    lp_tokens: u64,
+    recipient: b256,
 }
 
-pub struct PositionInfo {
+pub struct LiquidityRemoved {
+    sender: b256,
+    amount_0: u64,
+    amount_1: u64,
+    lp_tokens: u64,
+    recipient: b256,
+}
+
+pub struct Swap {
+    sender: b256,
+    amount_0_in: u64,
+    amount_1_in: u64,
+    amount_0_out: u64,
+    amount_1_out: u64,
+    recipient: b256,
+}
+
+pub struct UpdateReserves {
+    amount_0: u64,
+    amount_1: u64,
+}
+
+pub struct ProtocolFeeCollected {
+    sender: b256,
+    amount_0: u64,
+    amount_1: u64,
+}
+
+pub struct ProtocolFeeWithdrawn {
+    amount_0: u64,
+    amount_1: u64,
+}
+
+
+// Returns
+
+pub struct RemoveLiquidityInfo {
     token_0_amount: u64,
     token_1_amount: u64,
 }
@@ -39,16 +80,6 @@ pub struct FeeInfo {
     current_fee: u16,
     change_rate: u16,
     update_time: u32,
-}
-
-// Packed into a single 8-byte slot
-pub struct VaultFee {
-    // These values should be divided by 1,000,000 to get the rate. So 10,000 = 1%
-    stored_fee: u16, // 1 byte
-    change_rate: u16, // 1 byte
-    // TODO: directional changes
-    // fee_increasing: bool, // 1 byte
-    update_time: u32, // 4 bytes
 }
 
 abi Exchange {
