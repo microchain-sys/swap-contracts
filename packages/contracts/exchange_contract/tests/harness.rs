@@ -547,7 +547,8 @@ async fn burn() {
     let lp_balance = fixture.wallet.get_asset_balance(&fixture.exchange_asset_id.clone()).await.unwrap();
     assert_eq!(lp_balance, 0);
 
-    // expect(await pair.totalSupply()).to.eq(MINIMUM_LIQUIDITY)
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.lp_token_supply, 1000); // MINIMUM_LIQUIDITY
 
     let exchange_token_0_balance = fixture
         .wallet
