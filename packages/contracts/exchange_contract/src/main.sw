@@ -48,24 +48,6 @@ enum Error {
     MustBeCalledByVault: (),
 }
 
-impl Root for U128 {
-    // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
-    fn sqrt(self) -> Self {
-        let mut z = ~U128::from(0, 0);
-        if (self > ~U128::from(0, 3)) {
-            z = self;
-            let mut x = self / ~U128::from(0, 2) + ~U128::from(0, 1);
-            while (x < z) {
-                z = x;
-                x = (self / x + x) / ~U128::from(0, 2);
-            }
-        } else if (self != ~U128::from(0, 0)) {
-            z = ~U128::from(0, 1);
-        }
-        z
-    }
-}
-
 ////////////////////////////////////////
 // Constants
 ////////////////////////////////////////
@@ -112,9 +94,9 @@ storage {
     let (token0, token1) = get_tokens();
     let mut amount = 0;
     if (asset_id == token0) {
-        amount = this_balance(~ContractId::from(token0)) - token_0_reserve - storage.token0_vault_fees_collected;
+        amount = this_balance(ContractId::from(token0)) - token_0_reserve - storage.token0_vault_fees_collected;
     } else if (asset_id == token1) {
-        amount = this_balance(~ContractId::from(token1)) - token_1_reserve - storage.token1_vault_fees_collected;
+        amount = this_balance(ContractId::from(token1)) - token_1_reserve - storage.token1_vault_fees_collected;
     } else {
         revert(0);
     }
@@ -123,8 +105,8 @@ storage {
 
 #[storage(read)]fn get_pool_balance() -> (u64, u64) {
     let (token0, token1) = get_tokens();
-    let balance_0 = this_balance(~ContractId::from(token0)) - storage.token0_vault_fees_collected;
-    let balance_1 = this_balance(~ContractId::from(token1)) - storage.token1_vault_fees_collected;
+    let balance_0 = this_balance(ContractId::from(token0)) - storage.token0_vault_fees_collected;
+    let balance_1 = this_balance(ContractId::from(token1)) - storage.token1_vault_fees_collected;
     (balance_0, balance_1)
 }
 
@@ -156,7 +138,7 @@ storage {
     let mut fee = 0;
 
     if (current_fee_rate > 0) {
-        fee = (~U128::from(0, amount) * ~U128::from(0, current_fee_rate) / ~U128::from(0, 1_000_000))
+        fee = (U128::from(0, amount) * U128::from(0, current_fee_rate) / U128::from(0, 1_000_000))
             .as_u64()
             .unwrap();
         let sender: b256 = identity_to_b256(msg_sender().unwrap());
@@ -261,7 +243,7 @@ impl Exchange for Contract {
             mint(minted);
             storage.lp_token_supply = total_liquidity + minted;
         } else {
-            let initial_liquidity = (~U128::from(0, current_token_0_amount) * ~U128::from(0, current_token_1_amount))
+            let initial_liquidity = (U128::from(0, current_token_0_amount) * U128::from(0, current_token_1_amount))
                 .sqrt()
                 .as_u64()
                 .unwrap() - MINIMUM_LIQUIDITY;
@@ -281,7 +263,7 @@ impl Exchange for Contract {
                 amount_0: 0,
                 amount_1: 0,
                 lp_tokens: MINIMUM_LIQUIDITY,
-                recipient: ~b256::min(),
+                recipient: b256::min(),
             });
         };
         require(minted > 0, Error::InsufficentLiquidityMinted);
@@ -317,8 +299,8 @@ impl Exchange for Contract {
         burn(lp_tokens);
         storage.lp_token_supply = total_liquidity - lp_tokens;
 
-        transfer(amount0, ~ContractId::from(token0), recipient);
-        transfer(amount1, ~ContractId::from(token1), recipient);
+        transfer(amount0, ContractId::from(token0), recipient);
+        transfer(amount1, ContractId::from(token1), recipient);
 
         store_reserves(current_token_0_amount - amount0, current_token_1_amount - amount1);
 
@@ -346,15 +328,15 @@ impl Exchange for Contract {
         require(amount_0_out < token_0_reserve && amount_1_out < token_1_reserve, Error::InsufficentLiquidity);
 
         if (amount_0_out > 0) {
-            transfer(amount_0_out, ~ContractId::from(token0), recipient);
+            transfer(amount_0_out, ContractId::from(token0), recipient);
         }
         if (amount_1_out > 0) {
-            transfer(amount_1_out, ~ContractId::from(token1), recipient);
+            transfer(amount_1_out, ContractId::from(token1), recipient);
         }
         // Should be the following line, but `let mut` doesn't work with destructuring
         // let (balance_0, balance_1) = get_pool_balance();
-        let mut balance_0 = this_balance(~ContractId::from(token0)) - storage.token0_vault_fees_collected;
-        let mut balance_1 = this_balance(~ContractId::from(token1)) - storage.token1_vault_fees_collected;
+        let mut balance_0 = this_balance(ContractId::from(token0)) - storage.token0_vault_fees_collected;
+        let mut balance_1 = this_balance(ContractId::from(token1)) - storage.token1_vault_fees_collected;
 
         let (amount0_in, amount0_protocol_fee) = if balance_0 > token_0_reserve - amount_0_out {
                 process_protocol_fee(balance_0 - (token_0_reserve - amount_0_out), true)
@@ -372,11 +354,11 @@ impl Exchange for Contract {
         balance_0 = balance_0 - amount0_protocol_fee;
         balance_1 = balance_1 - amount1_protocol_fee;
 
-        let balance0_adjusted = ~U128::from(0, balance_0) * ~U128::from(0, 1000) - (~U128::from(0, amount0_in) * ~U128::from(0, 3));
-        let balance1_adjusted = ~U128::from(0, balance_1) * ~U128::from(0, 1000) - (~U128::from(0, amount1_in) * ~U128::from(0, 3));
+        let balance0_adjusted = U128::from(0, balance_0) * U128::from(0, 1000) - (U128::from(0, amount0_in) * U128::from(0, 3));
+        let balance1_adjusted = U128::from(0, balance_1) * U128::from(0, 1000) - (U128::from(0, amount1_in) * U128::from(0, 3));
 
         let left = balance0_adjusted * balance1_adjusted;
-        let right = ~U128::from(0, token_0_reserve) * ~U128::from(0, token_1_reserve) * ~U128::from(0, 1000 * 1000);
+        let right = U128::from(0, token_0_reserve) * U128::from(0, token_1_reserve) * U128::from(0, 1000 * 1000);
         require(left > right || left == right, Error::Invariant); // U128 doesn't have >= yet
 
         store_reserves(balance_0, balance_1);
@@ -400,11 +382,11 @@ impl Exchange for Contract {
             = (storage.token0_vault_fees_collected, storage.token1_vault_fees_collected);
 
         if (token0_vault_fees_collected > 0) {
-            transfer(token0_vault_fees_collected, ~ContractId::from(token0), recipient);
+            transfer(token0_vault_fees_collected, ContractId::from(token0), recipient);
             storage.token0_vault_fees_collected = 0;
         }
         if (token1_vault_fees_collected > 0) {
-            transfer(token1_vault_fees_collected, ~ContractId::from(token1), recipient);
+            transfer(token1_vault_fees_collected, ContractId::from(token1), recipient);
             storage.token1_vault_fees_collected = 0;
         }
 

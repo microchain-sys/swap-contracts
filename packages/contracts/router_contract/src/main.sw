@@ -129,19 +129,19 @@ impl Router for Contract {
             }
         }
 
-        force_transfer_to_contract(amount_a, ~ContractId::from(token0), ~ContractId::from(pool));
-        force_transfer_to_contract(amount_b, ~ContractId::from(token1), ~ContractId::from(pool));
+        force_transfer_to_contract(amount_a, ContractId::from(token0), ContractId::from(pool));
+        force_transfer_to_contract(amount_b, ContractId::from(token1), ContractId::from(pool));
 
         let liquidity = exchange.add_liquidity(recipient);
 
-        let current_token_0_amount = this_balance(~ContractId::from(token0));
-        let current_token_1_amount = this_balance(~ContractId::from(token1));
+        let current_token_0_amount = this_balance(ContractId::from(token0));
+        let current_token_1_amount = this_balance(ContractId::from(token1));
 
         if (current_token_0_amount > 0) {
-            transfer(amount_a, ~ContractId::from(token0), sender_identity);
+            transfer(amount_a, ContractId::from(token0), sender_identity);
         }
         if (current_token_1_amount > 0) {
-            transfer(amount_b, ~ContractId::from(token1), sender_identity);
+            transfer(amount_b, ContractId::from(token1), sender_identity);
         }
 
         AddLiquidityOutput {
@@ -167,7 +167,7 @@ impl Router for Contract {
         let fee_info = exchange.get_fee_info();
         let mut input = msg_amount();
         if (fee_info.current_fee > 0) {
-            let fee = (~U128::from(0, input) * ~U128::from(0, fee_info.current_fee) / ~U128::from(0, 1_000_000))
+            let fee = (U128::from(0, input) * U128::from(0, fee_info.current_fee) / U128::from(0, 1_000_000))
                 .as_u64()
                 .unwrap();
             input = input - fee;
@@ -216,9 +216,9 @@ impl Router for Contract {
         let fee_info = exchange.get_fee_info();
         let mut input_amount_with_fee = input_amount;
         if (fee_info.current_fee > 0) {
-            let percision = ~U128::from(0, 1_000_000);
-            let numerator = ~U128::from(0, input_amount) * percision;
-            let denominator = percision - ~U128::from(0, fee_info.current_fee);
+            let percision = U128::from(0, 1_000_000);
+            let numerator = U128::from(0, input_amount) * percision;
+            let denominator = percision - U128::from(0, fee_info.current_fee);
             input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
         }
 
@@ -264,7 +264,7 @@ impl Router for Contract {
             let fee_info = exchange.get_fee_info();
             let mut input = output_amount;
             if (fee_info.current_fee > 0) {
-                let fee = (~U128::from(0, input) * ~U128::from(0, fee_info.current_fee) / ~U128::from(0, 1_000_000))
+                let fee = (U128::from(0, input) * U128::from(0, fee_info.current_fee) / U128::from(0, 1_000_000))
                     .as_u64()
                     .unwrap();
                 input = input - fee;
@@ -279,7 +279,7 @@ impl Router for Contract {
             let swap_recipient = if i == pools.len() - 1 {
                 recipient
                 } else {
-                    Identity::ContractId(~ContractId::from(pools.get(i + 1).unwrap()))
+                    Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
                 };
 
             if i == 0 {
@@ -317,11 +317,11 @@ impl Router for Contract {
     ) -> SwapOutput {
         require(pools.len() > 0, Error::InvalidInput);
 
-        let mut input_assets: Vec<b256> = ~Vec::with_capacity(pools.len());
+        let mut input_assets: Vec<b256> = Vec::with_capacity(pools.len());
         input_assets.push(msg_asset_id().into());
 
-        let mut input_amounts: Vec<u64> = ~Vec::with_capacity(pools.len());
-        let mut output_amounts: Vec<u64> = ~Vec::with_capacity(pools.len());
+        let mut input_amounts: Vec<u64> = Vec::with_capacity(pools.len());
+        let mut output_amounts: Vec<u64> = Vec::with_capacity(pools.len());
 
         let mut i = 0;
         while i < pools.len() {
@@ -361,9 +361,9 @@ impl Router for Contract {
             let fee_info = exchange.get_fee_info();
             let mut input_amount_with_fee = input_amount;
             if (fee_info.current_fee > 0) {
-                let percision = ~U128::from(0, 1_000_000);
-                let numerator = ~U128::from(0, input_amount) * percision;
-                let denominator = percision - ~U128::from(0, fee_info.current_fee);
+                let percision = U128::from(0, 1_000_000);
+                let numerator = U128::from(0, input_amount) * percision;
+                let denominator = percision - U128::from(0, fee_info.current_fee);
                 input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
             }
 
@@ -393,7 +393,7 @@ impl Router for Contract {
             let swap_recipient = if i == pools.len() - 1 {
                     recipient
                 } else {
-                    Identity::ContractId(~ContractId::from(pools.get(i + 1).unwrap()))
+                    Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
                 };
 
             if i == 0 {

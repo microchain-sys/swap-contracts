@@ -24,7 +24,7 @@ abi PoolRegistry {
 }
 
 fn get_contract_root(addr: b256) -> b256 {
-    let mut result_buffer: b256 = ~b256::min();
+    let mut result_buffer: b256 = b256::min();
     asm(hash: result_buffer, addr: addr) {
         croo hash addr;
         hash: b256 // Return
@@ -32,13 +32,13 @@ fn get_contract_root(addr: b256) -> b256 {
 }
 
 storage {
-    expected_contract_root: b256 = ~b256::min(),
+    expected_contract_root: b256 = b256::min(),
     pools: StorageMap<(b256, b256), b256> = StorageMap {},
 }
 
 impl PoolRegistry for Contract {
     #[storage(write, read)]fn initialize(template_exchange_id: b256) {
-        require(storage.expected_contract_root == ~b256::min(), Error::AlreadyInitialized);
+        require(storage.expected_contract_root == b256::min(), Error::AlreadyInitialized);
         let root = get_contract_root(template_exchange_id);
         storage.expected_contract_root = root;
     }
@@ -53,7 +53,7 @@ impl PoolRegistry for Contract {
         require(token0 < token1, Error::UnorderedTokens);
 
         let existing_exchange = storage.pools.get((token0, token1));
-        require(existing_exchange == ~b256::min(), Error::AlreadyRegistered);
+        require(existing_exchange == b256::min(), Error::AlreadyRegistered);
 
         let pool_info = exchange.get_pool_info();
         require(pool_info.lp_token_supply == 0, Error::PoolInitialized);
@@ -65,7 +65,7 @@ impl PoolRegistry for Contract {
         let (token0, token1) = if token_a < token_b { (token_a, token_b) } else { (token_b, token_a) };
         let exchange = storage.pools.get((token0, token1));
 
-        if (exchange == ~b256::min()) {
+        if (exchange == b256::min()) {
             Option::None
         } else {
             Option::Some(exchange)

@@ -9,9 +9,9 @@ use std::str::FromStr;
 ///////////////////////////////
 // Load the SwaySwap Contract abi
 ///////////////////////////////
-abigen!(TestRegistryBuilder, "out/debug/registry_contract-abi.json");
+abigen!(RegistryBuilder, "out/debug/registry_contract-abi.json");
 
-abigen!(TestExchange, "../exchange_contract/out/debug/exchange_contract-abi.json");
+abigen!(Exchange, "../exchange_contract/out/debug/exchange_contract-abi.json");
 
 abigen!(
     TestToken,
@@ -33,8 +33,8 @@ async fn register_exchange() {
     .await
     .unwrap();
 
-    let registry_instance = TestRegistryBuilder::new(
-        registry_contract_id.to_string(),
+    let registry_instance = RegistryBuilder::new(
+        registry_contract_id,
         wallet.clone(),
     );
 
@@ -121,10 +121,7 @@ async fn unordered_tokens_should_fail() {
     .await
     .unwrap();
 
-    let registry_instance = TestRegistryBuilder::new(
-        registry_contract_id.to_string(),
-        wallet.clone(),
-    );
+    let registry_instance = RegistryBuilder::new(registry_contract_id, wallet.clone());
 
     let token0_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000000").unwrap();
     let token1_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap();    
@@ -182,10 +179,7 @@ async fn test_invalid_contract() {
     .await
     .unwrap();
 
-    let registry_instance = TestRegistryBuilder::new(
-        registry_contract_id.to_string(),
-        wallet.clone(),
-    );
+    let registry_instance = RegistryBuilder::new(registry_contract_id, wallet.clone());
 
     let token0_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000000").unwrap();
     let token1_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap();    
@@ -193,7 +187,6 @@ async fn test_invalid_contract() {
     // Create fake token ids
     let token_id_1 = Bytes32::from_str("0x000005877b940cc69d7a9a71000a0cfdd79e93f783f198de893165278712a480").unwrap();
     let token_id_2 = Bytes32::from_str("0x716c345b96f3c17234c73881c40df43d3d492b902a01a062c12e92eeae0284e9").unwrap();
-    let token_id_nonexistent = Bytes32::from_str("0xdf43d3d492b90716c345b96f3c17234c73881e92eeae0284e9c402a01a062c12").unwrap();
 
     let storage_vec = vec![
         StorageSlot::new(token0_slot, token_id_1),
@@ -210,6 +203,7 @@ async fn test_invalid_contract() {
     .await
     .unwrap();
 
+    // Note: we're using a different binary here, so the code hash won't match the first exchange
     let invalid_exchange_contract_id = Contract::deploy_with_parameters(
         "./tests/modified_exchange_contract.bin",
         &wallet,
@@ -253,10 +247,7 @@ async fn initialized_pools_should_fail() {
     .await
     .unwrap();
 
-    let registry_instance = TestRegistryBuilder::new(
-        registry_contract_id.to_string(),
-        wallet.clone(),
-    );
+    let registry_instance = RegistryBuilder::new(registry_contract_id, wallet.clone());
 
     let token_contract_id = Contract::deploy(
         "../token_contract/out/debug/token_contract.bin",
@@ -267,7 +258,7 @@ async fn initialized_pools_should_fail() {
     .await
     .unwrap();
 
-    let token_instance = TestToken::new(token_contract_id.to_string(), wallet.clone());
+    let token_instance = TestToken::new(token_contract_id.clone(), wallet.clone());
 
     // Initialize token contract
     token_instance
@@ -300,7 +291,7 @@ async fn initialized_pools_should_fail() {
     .await
     .unwrap();
 
-    let exchange_instance = TestExchange::new(exchange_contract_id.to_string(), wallet.clone());
+    let exchange_instance = Exchange::new(exchange_contract_id.clone(), wallet.clone());
 
     // Add Liquidity
 
@@ -323,7 +314,7 @@ async fn initialized_pools_should_fail() {
         )
         .await;
 
-    let result = exchange_instance
+    exchange_instance
         .methods()
         .add_liquidity(Identity::Address(wallet.address().into()))
         .append_variable_outputs(3)
@@ -377,10 +368,7 @@ async fn duplicate_pools_should_fail() {
     .await
     .unwrap();
 
-    let registry_instance = TestRegistryBuilder::new(
-        registry_contract_id.to_string(),
-        wallet.clone(),
-    );
+    let registry_instance = RegistryBuilder::new(registry_contract_id, wallet.clone());
 
     let token0_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000000").unwrap();
     let token1_slot = Bytes32::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap();
@@ -388,7 +376,6 @@ async fn duplicate_pools_should_fail() {
     // Create fake token ids
     let token_id_1 = Bytes32::from_str("0x000005877b940cc69d7a9a71000a0cfdd79e93f783f198de893165278712a480").unwrap();
     let token_id_2 = Bytes32::from_str("0x716c345b96f3c17234c73881c40df43d3d492b902a01a062c12e92eeae0284e9").unwrap();
-    let token_id_nonexistent = Bytes32::from_str("0xdf43d3d492b90716c345b96f3c17234c73881e92eeae0284e9c402a01a062c12").unwrap();
 
     let storage_vec = vec![
         StorageSlot::new(token0_slot, token_id_1),
@@ -434,8 +421,8 @@ async fn duplicate_pools_should_fail() {
 
     let is_err = registry_instance
         .methods()
-        .add_exchange_contract(Bits256(exchange_contract_1_id.hash().into()))
-        .set_contracts(&[exchange_contract_1_id.clone()])
+        .add_exchange_contract(Bits256(exchange_contract_2_id.hash().into()))
+        .set_contracts(&[exchange_contract_2_id.clone()])
         .call()
         .await
         .is_err();

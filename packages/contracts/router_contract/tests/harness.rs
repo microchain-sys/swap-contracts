@@ -10,15 +10,7 @@ use fuels::{
 // Load the Router Script ABI abi
 ///////////////////////////////
 abigen!(Router, "./out/debug/router_contract-abi.json");
-
-///////////////////////////////
-// Load the Exchange Contract abi
-///////////////////////////////
-abigen!(TestExchange, "../exchange_contract/out/debug/exchange_contract-abi.json");
-
-///////////////////////////////
-// Load the Token Contract abi
-///////////////////////////////T
+abigen!(Exchange, "../exchange_contract/out/debug/exchange_contract-abi.json");
 abigen!(TestToken, "../token_contract/out/debug/token_contract-abi.json");
 abigen!(Vault, "../vault_contract/out/debug/vault_contract-abi.json");
 
@@ -37,14 +29,14 @@ struct Fixture {
     token_a_instance: TestToken,
     exchange_a_contract_id: Bech32ContractId,
     exchange_a_asset_id: AssetId,
-    exchange_a_instance: TestExchange,
+    exchange_a_instance: Exchange,
 
     token_b_contract_id: Bech32ContractId,
     token_b_asset_id: AssetId,
     token_b_instance: TestToken,
     exchange_b_contract_id: Bech32ContractId,
     exchange_b_asset_id: AssetId,
-    exchange_b_instance: TestExchange,
+    exchange_b_instance: Exchange,
 
     router_contract_id: Bech32ContractId,
     router_instance: Router,
@@ -138,12 +130,12 @@ async fn setup() -> Fixture {
     .await
     .unwrap();
 
-    let exchange_a_instance = TestExchange::new(exchange_a_contract_id.to_string(), wallet.clone());
-    let token_a_instance = TestToken::new(token_a_contract_id.to_string(), wallet.clone());
-    let exchange_b_instance = TestExchange::new(exchange_b_contract_id.to_string(), wallet.clone());
-    let token_b_instance = TestToken::new(token_b_contract_id.to_string(), wallet.clone());
-    let router_instance = Router::new(router_contract_id.to_string(), wallet.clone());
-    let vault_instance = Vault::new(vault_contract_id.to_string(), wallet.clone());
+    let exchange_a_instance = Exchange::new(exchange_a_contract_id.clone(), wallet.clone());
+    let token_a_instance = TestToken::new(token_a_contract_id.clone(), wallet.clone());
+    let exchange_b_instance = Exchange::new(exchange_b_contract_id.clone(), wallet.clone());
+    let token_b_instance = TestToken::new(token_b_contract_id.clone(), wallet.clone());
+    let router_instance = Router::new(router_contract_id.clone(), wallet.clone());
+    let vault_instance = Vault::new(vault_contract_id.clone(), wallet.clone());
 
     let wallet_token_amount = to_9_decimal(20000);
 

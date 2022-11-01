@@ -87,9 +87,9 @@ async fn setup() -> Fixture {
     .await
     .unwrap();
 
-    let exchange_instance = Exchange::new(exchange_contract_id.to_string(), wallet.clone());
-    let token_instance = TestToken::new(token_contract_id.to_string(), wallet.clone());
-    let vault_instance = Vault::new(vault_contract_id.to_string(), wallet.clone());
+    let exchange_instance = Exchange::new(exchange_contract_id.clone(), wallet.clone());
+    let token_instance = TestToken::new(token_contract_id.clone(), wallet.clone());
+    let vault_instance = Vault::new(vault_contract_id.clone(), wallet.clone());
 
     let wallet_token_amount = to_9_decimal(20000);
 

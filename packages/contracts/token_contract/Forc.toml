@@ -5,5 +5,5 @@ license = "Apache-2.0"
 name = "token_contract"
 
 [dependencies]
-token_abi = { path = "../token_abi" }
 microchain_helpers = { path = "../microchain_helpers" }
+token_abi = { path = "../token_abi" }
