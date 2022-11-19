@@ -1,3 +1,5 @@
+extern crate test_helpers;
+
 use std::{
     vec,
     str::FromStr,
@@ -9,6 +11,7 @@ use fuels::{
     tx::{AssetId, Bytes32, StorageSlot},
 };
 use tokio::time::{sleep, Duration};
+use test_helpers::get_timestamp_and_call;
 
 ///////////////////////////////
 // Load the Exchange Contract abi
@@ -584,12 +587,12 @@ async fn accrue_protocol_fees() {
     add_liquidity(&fixture, token_0_amount, token_1_amount)
         .await;
 
-    fixture.vault_instance
-        .methods()
-        .set_fees(10000, 1000)
-        .call()
-        .await
-        .unwrap();
+    let (_result, set_fee_timestamp) = get_timestamp_and_call(
+        fixture.vault_instance
+            .methods()
+            .set_fees(10000, 1000)
+    )
+        .await;
     
     fixture.exchange_instance
         .methods()
@@ -599,8 +602,11 @@ async fn accrue_protocol_fees() {
         .await
         .unwrap();
 
-    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
-    assert_eq!(fee_info.value.current_fee, 10000);
+    let (fee_info, fee_info_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance.methods().get_vault_info()
+    ).await;
+
+    assert_eq!(fee_info.value.current_fee as u64, 10000 - (1000 * (fee_info_timestamp - set_fee_timestamp)));
     assert_eq!(fee_info.value.change_rate, 1000);
 
     let starting_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
@@ -610,35 +616,42 @@ async fn accrue_protocol_fees() {
     let input = to_9_decimal(1);
     let expected_output = 1648613753;
 
-    let result = fixture.exchange_instance
-        .methods()
-        .swap(0, expected_output, Identity::Address(fixture.wallet.address().into()))
-        .call_params(CallParameters::new(
-            Some(input),
-            None,
-            None,
-        ))
-        .tx_params(TxParameters {
-            gas_price: 0,
-            gas_limit: 100_000_000,
-            maturity: 0,
-        })
-        .append_variable_outputs(1)
-        .call()
-        .await
-        .unwrap();
+    let (result, swap_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance
+            .methods()
+            .swap(0, expected_output, Identity::Address(fixture.wallet.address().into()))
+            .call_params(CallParameters::new(
+                Some(input),
+                None,
+                None,
+            ))
+            .tx_params(TxParameters {
+                gas_price: 0,
+                gas_limit: 100_000_000,
+                maturity: 0,
+            })
+            .append_variable_outputs(1)
+    )
+        .await;
+
+    let expected_fee_rate = 10000 - (1000 * (swap_timestamp - set_fee_timestamp));
+    let expected_fee_0 = input * expected_fee_rate / 1_000_000;
 
     let logs = fixture.exchange_instance.logs_with_type::<ProtocolFeeCollected>(&result.receipts).unwrap();
     assert_eq!(logs.len(), 1);
-    let swap_event = logs.get(0).unwrap();
-    assert_eq!(swap_event.sender, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.amount_0, 10000000);
-    assert_eq!(swap_event.amount_1, 0);
+    let fee_event = logs.get(0).unwrap();
+    assert_eq!(fee_event.sender, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(fee_event.amount_0, expected_fee_0);
+    assert_eq!(fee_event.amount_1, 0);
 
-    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
-    assert_eq!(fee_info.value.current_fee, 10000);
+    let (fee_info, fee_info_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance.methods().get_vault_info()
+    ).await;
+
+    let expected_fee_rate = 10000 - (1000 * (fee_info_timestamp - set_fee_timestamp));
+    assert_eq!(fee_info.value.current_fee as u64, expected_fee_rate);
     assert_eq!(fee_info.value.change_rate, 1000);
-    assert_eq!(fee_info.value.token_0_protocol_fees_collected, 10000000);
+    assert_eq!(fee_info.value.token_0_protocol_fees_collected, expected_fee_0);
     assert_eq!(fee_info.value.token_1_protocol_fees_collected, 0);
 
     let end_token_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
@@ -646,15 +659,18 @@ async fn accrue_protocol_fees() {
     assert_eq!(end_token_balance - starting_token_balance, expected_output);
 
     let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
-    assert_eq!(pool_info.value.token_0_reserve, token_0_amount + (input * 99 / 100));
+    assert_eq!(pool_info.value.token_0_reserve, token_0_amount + input - expected_fee_0);
     assert_eq!(pool_info.value.token_1_reserve, token_1_amount - expected_output);
 
     // Wait, let the fee decrease to 0.9%
     // Sleep isn't ideal for these tests, ideally the local VM would allow changing timestamps
     sleep(Duration::from_secs(1)).await;
 
-    let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
-    assert_eq!(fee_info.value.current_fee, 9000);
+    let (fee_info, fee_info_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance.methods().get_vault_info()
+    ).await;
+    let expected_fee_rate = 10000 - (1000 * (fee_info_timestamp - set_fee_timestamp));
+    assert_eq!(fee_info.value.current_fee as u64, expected_fee_rate);
 
     // Swap again, token1 -> token0
 
@@ -662,34 +678,37 @@ async fn accrue_protocol_fees() {
 
     let expected_output = 633116959;
 
-    let result = fixture.exchange_instance
-        .methods()
-        .swap(expected_output, 0, Identity::Address(fixture.wallet.address().into()))
-        .call_params(CallParameters::new(
-            Some(input),
-            Some(fixture.token_asset_id.clone()),
-            None,
-        ))
-        .tx_params(TxParameters {
-            gas_price: 0,
-            gas_limit: 100_000_000,
-            maturity: 0,
-        })
-        .append_variable_outputs(1)
-        .call()
-        .await
-        .unwrap();
+    let (result, swap_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance
+            .methods()
+            .swap(expected_output, 0, Identity::Address(fixture.wallet.address().into()))
+            .call_params(CallParameters::new(
+                Some(input),
+                Some(fixture.token_asset_id.clone()),
+                None,
+            ))
+            .tx_params(TxParameters {
+                gas_price: 0,
+                gas_limit: 100_000_000,
+                maturity: 0,
+            })
+            .append_variable_outputs(1)
+    )
+        .await;
+
+    let expected_fee_rate = 10000 - (1000 * (swap_timestamp - set_fee_timestamp));
+    let expected_fee_1 = input * expected_fee_rate / 1_000_000;
 
     let logs = fixture.exchange_instance.logs_with_type::<ProtocolFeeCollected>(&result.receipts).unwrap();
     assert_eq!(logs.len(), 1);
-    let swap_event = logs.get(0).unwrap();
-    assert_eq!(swap_event.sender, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.amount_0, 0);
-    assert_eq!(swap_event.amount_1, 9000000);
+    let fee_event = logs.get(0).unwrap();
+    assert_eq!(fee_event.sender, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(fee_event.amount_0, 0);
+    assert_eq!(fee_event.amount_1, expected_fee_1);
 
     let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
-    assert_eq!(fee_info.value.token_0_protocol_fees_collected, 10000000);
-    assert_eq!(fee_info.value.token_1_protocol_fees_collected, 9000000);
+    assert_eq!(fee_info.value.token_0_protocol_fees_collected, expected_fee_0);
+    assert_eq!(fee_info.value.token_1_protocol_fees_collected, expected_fee_1);
 
     let end_token_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
 
@@ -708,8 +727,8 @@ async fn accrue_protocol_fees() {
     let logs = fixture.exchange_instance.logs_with_type::<ProtocolFeeWithdrawn>(&result.receipts).unwrap();
     assert_eq!(logs.len(), 1);
     let swap_event = logs.get(0).unwrap();
-    assert_eq!(swap_event.amount_0, 10000000);
-    assert_eq!(swap_event.amount_1, 9000000);
+    assert_eq!(swap_event.amount_0, expected_fee_0);
+    assert_eq!(swap_event.amount_1, expected_fee_1);
 
     let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
     assert_eq!(fee_info.value.token_0_protocol_fees_collected, 0);
@@ -729,8 +748,8 @@ async fn accrue_protocol_fees() {
         .get_contract_asset_balance(&fixture.vault_contract_id, fixture.token_asset_id)
         .await
         .unwrap();
-    assert_eq!(vault_token_0_balance, 10000000);
-    assert_eq!(vault_token_1_balance, 9000000);
+    assert_eq!(vault_token_0_balance, expected_fee_0);
+    assert_eq!(vault_token_1_balance, expected_fee_1);
 }
 
 #[tokio::test]
