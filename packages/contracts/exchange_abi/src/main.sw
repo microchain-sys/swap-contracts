@@ -1,8 +1,6 @@
 library exchange_abi;
 
 use std::{
-    contract_id::ContractId,
-    identity::Identity,
     u256::U256,
 };
 
@@ -100,6 +98,8 @@ abi Exchange {
     #[storage(read)]fn get_fee_info() -> FeeInfo;
     /// Get the two tokens held in the pool
     #[storage(read)]fn get_tokens() -> (b256, b256);
+    #[storage(read)]fn observe(seconds_ago: u64) -> (U256, U256);
+    // #[storage(read)]fn observe(seconds_ago: Vec<u64>) -> Vec<(U256, U256)>;
     ////////////////////
     // Actions
     ////////////////////
@@ -108,7 +108,7 @@ abi Exchange {
     /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
     #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64;
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
-    #[storage(read, write)]fn remove_liquidity( recipient: Identity) -> RemoveLiquidityInfo;
+    #[storage(read, write)]fn remove_liquidity(recipient: Identity) -> RemoveLiquidityInfo;
     #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
     #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64);
     /// Increase the size of the TWAP buffer to the given size
