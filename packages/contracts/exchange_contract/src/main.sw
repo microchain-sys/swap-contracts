@@ -189,24 +189,21 @@ storage {
             .unwrap();
         let sender: b256 = identity_to_b256(msg_sender().unwrap());
 
+        let mut amount_0 = 0;
+        let mut amount_1 = 0;
         if (is_token0) {
             storage.token0_vault_fees_collected = storage.token0_vault_fees_collected + fee;
-
-            log(ProtocolFeeCollected {
-                sender: sender,
-                amount_0: fee,
-                amount_1: 0,
-            });
+            amount_0 = fee;
         } else {
             storage.token1_vault_fees_collected = storage.token1_vault_fees_collected + fee;
-
-            log(ProtocolFeeCollected {
-                sender: sender,
-                amount_0: 0,
-                amount_1: fee,
-            });
+            amount_1 = fee;
         }
 
+        log(ProtocolFeeCollected {
+            sender: sender,
+            amount_0: amount_0,
+            amount_1: amount_1,
+        });
     }
     (amount - fee, fee)
 }
