@@ -1,8 +1,7 @@
 library exchange_abi;
 
 use std::{
-    contract_id::ContractId,
-    identity::Identity,
+    u256::U256,
 };
 
 // Events
@@ -62,6 +61,12 @@ pub struct PoolInfo {
     lp_token_supply: u64,
 }
 
+pub struct TWAPInfo {
+    current_element: u64,
+    buffer_size: u64,
+    next_buffer_size: u64,
+}
+
 pub struct PreviewInfo {
     amount: u64,
     has_liquidity: bool,
@@ -82,6 +87,12 @@ pub struct FeeInfo {
     update_time: u32,
 }
 
+pub struct Observation {
+    timestamp: u64,
+    price_0_cumulative_last: U256,
+    price_1_cumulative_last: U256,
+}
+
 abi Exchange {
     ////////////////////
     // Read only
@@ -90,8 +101,10 @@ abi Exchange {
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     #[storage(read)]fn get_vault_info() -> VaultInfo;
     #[storage(read)]fn get_fee_info() -> FeeInfo;
+    #[storage(read)]fn get_twap_info() -> TWAPInfo;
     /// Get the two tokens held in the pool
     #[storage(read)]fn get_tokens() -> (b256, b256);
+    #[storage(read)]fn get_observation(element: u64) -> Observation;
     ////////////////////
     // Actions
     ////////////////////
@@ -100,7 +113,9 @@ abi Exchange {
     /// Deposit ETH and Tokens at current ratio to mint SWAYSWAP tokens.
     #[storage(read, write)]fn add_liquidity(recipient: Identity) -> u64;
     /// Burn SWAYSWAP tokens to withdraw ETH and Tokens at current ratio.
-    #[storage(read, write)]fn remove_liquidity( recipient: Identity) -> RemoveLiquidityInfo;
+    #[storage(read, write)]fn remove_liquidity(recipient: Identity) -> RemoveLiquidityInfo;
     #[storage(read, write)]fn swap(amount_0_out: u64, amount_1_out: u64, recipient: Identity);
     #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64);
+    /// Increase the size of the TWAP buffer to the given size
+    #[storage(read, write)]fn expand_twap_buffer(new_slots: u64);
 }

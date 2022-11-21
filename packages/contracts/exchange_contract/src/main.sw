@@ -3,7 +3,7 @@ contract;
 use std::{
     address::*,
     assert::assert,
-    block::*,
+    block::timestamp,
     chain::auth::*,
     constants::ZERO_B256,
     context::{*, call_frames::*},
@@ -17,10 +17,12 @@ use std::{
     storage::*,
     token::*,
     u128::U128,
+    u256::U256,
 };
 
 use exchange_abi::{
     Exchange,
+    Observation,
     Swap,
     UpdateReserves,
     LiquidityAdded,
@@ -30,6 +32,7 @@ use exchange_abi::{
     FeeInfo,
     PoolInfo,
     RemoveLiquidityInfo,
+    TWAPInfo,
     VaultInfo,
 };
 use microchain_helpers::{
@@ -46,6 +49,7 @@ enum Error {
     InsufficentLiquidityMinted: (),
     InsufficentLiquidityBurned: (),
     MustBeCalledByVault: (),
+    TWAPOutOfRange: (),
 }
 
 ////////////////////////////////////////
@@ -57,6 +61,8 @@ const TOKEN_1_SLOT = 0x000000000000000000000000000000000000000000000000000000000
 
 /// Minimum ETH liquidity to open a pool.
 const MINIMUM_LIQUIDITY = 1000;
+
+const TWAP_PERCISION = U256::from(0, 0, 0, 1000000000);
 
 ////////////////////////////////////////
 // Storage declarations
@@ -80,10 +86,17 @@ storage {
     lp_token_supply: u64 = 0,
     vault: b256 = ZERO_B256,
     vault_fee: VaultFee = VaultFee {
-        stored_fee: 0,
-        change_rate: 0,
-        update_time: 0,
+        stored_fee: 0u16,
+        change_rate: 0u16,
+        update_time: 0u32,
     },
+    // the most-recently updated index of the TWAP buffer
+    twap_buffer_current_element: u64 = 0,
+    // the current maximum number of observations that are being stored
+    twap_buffer_size: u64 = 0,
+    // the next maximum number of observations to store, triggered in observations.write
+    twap_next_buffer_size: u64 = 0,
+    twap_buffer: StorageMap<u64, Observation> = StorageMap {},
 }
 
 ////////////////////////////////////////
@@ -110,7 +123,40 @@ storage {
     (balance_0, balance_1)
 }
 
-#[storage(read, write)]fn store_reserves(reserve0: u64, reserve1: u64) {
+#[storage(read, write)]fn store_reserves(reserve0: u64, reserve1: u64, prev_reserve0: u64, prev_reserve1: u64) {
+    let buffer_size = storage.twap_buffer_size;
+    let next_buffer_size = storage.twap_next_buffer_size;
+    let current_element = storage.twap_buffer_current_element;
+
+    let mut next_observation_slot = (current_element + 1) % next_buffer_size;
+    let mut last_observation = storage.twap_buffer.get(current_element);
+    if (last_observation.timestamp <= 1) {
+        next_observation_slot = current_element;
+        last_observation = Observation {
+            timestamp: timestamp(),
+            price_0_cumulative_last: U256::from(0, 0, 0, 0),
+            price_1_cumulative_last: U256::from(0, 0, 0, 0),
+        };
+    }
+
+    let time_elapsed = timestamp() - last_observation.timestamp;
+    if (time_elapsed != 0 && prev_reserve0 != 0 && prev_reserve1 != 0) {
+        let time_elapsed_u256 = U256::from(0, 0, 0, time_elapsed);
+        let price_0_cumulative = U256::from(0, 0, 0, prev_reserve1) * TWAP_PERCISION * time_elapsed_u256 / U256::from(0, 0, 0, prev_reserve0);
+        let price_1_cumulative = U256::from(0, 0, 0, prev_reserve0) * TWAP_PERCISION * time_elapsed_u256 / U256::from(0, 0, 0, prev_reserve1);
+
+        storage.twap_buffer.insert(next_observation_slot, Observation {
+            timestamp: timestamp(),
+            price_0_cumulative_last: last_observation.price_0_cumulative_last + price_0_cumulative,
+            price_1_cumulative_last: last_observation.price_1_cumulative_last + price_1_cumulative,
+        });
+
+        storage.twap_buffer_current_element = next_observation_slot;
+        if (next_observation_slot >= buffer_size) {
+            storage.twap_buffer_size = buffer_size + 1;
+        }
+    }
+
     storage.token0_reserve = reserve0;
     storage.token1_reserve = reserve1;
 
@@ -214,6 +260,14 @@ impl Exchange for Contract {
         }
     }
 
+    #[storage(read)]fn get_twap_info() -> TWAPInfo {
+        TWAPInfo {
+            current_element: storage.twap_buffer_current_element,
+            buffer_size: storage.twap_buffer_size,
+            next_buffer_size: storage.twap_next_buffer_size,
+        }
+    }
+
     #[storage(read, write)]fn cache_vault_fees() {
         cache_vault_fees(storage.vault);
     }
@@ -238,7 +292,12 @@ impl Exchange for Contract {
 
             minted = if (token0_liquidity < token1_liquidity) { token0_liquidity } else { token1_liquidity };
             
-            store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + current_token_1_amount);
+            store_reserves(
+                token_0_reserve + current_token_0_amount,
+                token_1_reserve + current_token_1_amount,
+                token_0_reserve,
+                token_1_reserve,
+            );
 
             mint(minted);
             storage.lp_token_supply = total_liquidity + minted;
@@ -248,8 +307,22 @@ impl Exchange for Contract {
                 .as_u64()
                 .unwrap() - MINIMUM_LIQUIDITY;
 
+            // Ensure there's at least 1 TWAP slot
+            storage.twap_buffer_size = 1;
+            storage.twap_next_buffer_size = 1;
+            storage.twap_buffer.insert(0, Observation {
+                timestamp: timestamp(),
+                price_0_cumulative_last: U256::min(),
+                price_1_cumulative_last: U256::min(),
+            });
+
             // Add fund to the reserves
-            store_reserves(current_token_0_amount, current_token_1_amount);
+            store_reserves(
+                current_token_0_amount,
+                current_token_1_amount,
+                0,
+                0,
+            );
 
             // Mint LP token
             mint(initial_liquidity);
@@ -302,7 +375,12 @@ impl Exchange for Contract {
         transfer(amount0, ContractId::from(token0), recipient);
         transfer(amount1, ContractId::from(token1), recipient);
 
-        store_reserves(current_token_0_amount - amount0, current_token_1_amount - amount1);
+        store_reserves(
+            current_token_0_amount - amount0,
+            current_token_1_amount - amount1,
+            token_0_reserve,
+            token_1_reserve,
+        );
 
         log(LiquidityRemoved {
             sender: identity_to_b256(msg_sender().unwrap()),
@@ -361,7 +439,12 @@ impl Exchange for Contract {
         let right = U128::from(0, token_0_reserve) * U128::from(0, token_1_reserve) * U128::from(0, 1000 * 1000);
         require(left > right || left == right, Error::Invariant); // U128 doesn't have >= yet
 
-        store_reserves(balance_0, balance_1);
+        store_reserves(
+            balance_0,
+            balance_1,
+            token_0_reserve,
+            token_1_reserve,
+        );
 
         log(Swap {
             sender: identity_to_b256(msg_sender().unwrap()),
@@ -371,6 +454,24 @@ impl Exchange for Contract {
             amount_1_out: amount_1_out,
             recipient: identity_to_b256(recipient),
         });
+    }
+
+    #[storage(read, write)]fn expand_twap_buffer(new_total_slots: u64) {
+        let mut i = storage.twap_next_buffer_size;
+
+        while i < new_total_slots {
+            // The goal here is to initialize these slots (write a value), without
+            // providing actual data. Observations will be aware that timestamp=1 means
+            // initialized, but not yet used
+            storage.twap_buffer.insert(i, Observation {
+                timestamp: 1,
+                price_0_cumulative_last: U256::max(),
+                price_1_cumulative_last: U256::max(),
+            });
+            i += 1;
+        }
+
+        storage.twap_next_buffer_size = new_total_slots;
     }
 
     #[storage(read, write)]fn withdraw_protocol_fees(recipient: Identity) -> (u64, u64) {
@@ -400,5 +501,10 @@ impl Exchange for Contract {
 
     #[storage(read)]fn get_tokens() -> (b256, b256) {
         get_tokens()
+    }
+
+    #[storage(read)]fn get_observation(slot: u64) -> Observation {
+        require(slot < storage.twap_buffer_size, Error::TWAPOutOfRange);
+        storage.twap_buffer.get(slot)
     }
 }
