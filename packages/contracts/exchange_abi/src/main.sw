@@ -59,7 +59,12 @@ pub struct PoolInfo {
     token_0_reserve: u64,
     token_1_reserve: u64,
     lp_token_supply: u64,
-    twap_buffer_size: u64,
+}
+
+pub struct TWAPInfo {
+    current_element: u64,
+    buffer_size: u64,
+    next_buffer_size: u64,
 }
 
 pub struct PreviewInfo {
@@ -96,10 +101,10 @@ abi Exchange {
     #[storage(read)]fn get_pool_info() -> PoolInfo;
     #[storage(read)]fn get_vault_info() -> VaultInfo;
     #[storage(read)]fn get_fee_info() -> FeeInfo;
+    #[storage(read)]fn get_twap_info() -> TWAPInfo;
     /// Get the two tokens held in the pool
     #[storage(read)]fn get_tokens() -> (b256, b256);
-    #[storage(read)]fn observe(seconds_ago: u64) -> (U256, U256);
-    // #[storage(read)]fn observe(seconds_ago: Vec<u64>) -> Vec<(U256, U256)>;
+    #[storage(read)]fn get_observation(element: u64) -> Observation;
     ////////////////////
     // Actions
     ////////////////////

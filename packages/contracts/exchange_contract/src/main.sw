@@ -1,7 +1,5 @@
 contract;
 
-dep observation_helpers;
-
 use std::{
     address::*,
     assert::assert,
@@ -34,16 +32,13 @@ use exchange_abi::{
     FeeInfo,
     PoolInfo,
     RemoveLiquidityInfo,
+    TWAPInfo,
     VaultInfo,
 };
 use microchain_helpers::{
     identity_to_b256,
 };
 use vault_abi::Vault;
-use ::observation_helpers::{
-    lte,
-    transform,
-};
 
 enum Error {
     AlreadyInitialized: (),
@@ -54,17 +49,7 @@ enum Error {
     InsufficentLiquidityMinted: (),
     InsufficentLiquidityBurned: (),
     MustBeCalledByVault: (),
-    TargetObservationTooOld: (),
-}
-
-impl Observation {
-    pub fn empty() -> Observation {
-        Observation {
-            timestamp: 1,
-            price_0_cumulative_last: U256::min(),
-            price_1_cumulative_last: U256::min(),
-        }
-    }
+    TWAPOutOfRange: (),
 }
 
 ////////////////////////////////////////
@@ -101,9 +86,9 @@ storage {
     lp_token_supply: u64 = 0,
     vault: b256 = ZERO_B256,
     vault_fee: VaultFee = VaultFee {
-        stored_fee: 0,
-        change_rate: 0,
-        update_time: 0,
+        stored_fee: 0u16,
+        change_rate: 0u16,
+        update_time: 0u32,
     },
     // the most-recently updated index of the TWAP buffer
     twap_buffer_current_element: u64 = 0,
@@ -181,144 +166,6 @@ storage {
     })
 }
 
-/// @notice Fetches the observations before_or_at and at_or_after a target, i.e. where [before_or_at, at_or_after] is satisfied.
-/// The result may be the same observation, or adjacent observations.
-/// @dev The answer must be contained in the array, used when the target is located within the stored observation
-/// boundaries: older than the most recent observation and younger, or the same age as, the oldest observation
-/// @param self The stored oracle array
-/// @param time The current block.timestamp
-/// @param target The timestamp at which the reserved observation should be for
-/// @param index The index of the observation that was most recently written to the observations array
-/// @param cardinality The number of populated elements in the oracle array
-/// @return before_or_at The observation recorded before, or at, the target
-/// @return at_or_after The observation recorded at, or after, the target
-#[storage(read)]
-fn binary_search(
-    current_time: u64,
-    target_time: u64,
-    current_index: u64,
-    buffer_size: u64,
-) -> (Observation, Observation) {
-    let mut l = (current_index + 1) % buffer_size; // oldest observation
-    let mut r = l + buffer_size - 1; // newest observation
-    let mut i = 0;
-    let mut before_or_at = Observation::empty();
-    let mut at_or_after = Observation::empty();
-
-    while true {
-        i = (l + r) / 2;
-
-        before_or_at = storage.twap_buffer.get(i % buffer_size);
-
-        // we've landed on an uninitialized tick, keep searching higher (more recently)
-        let is_initialized = before_or_at.timestamp != 1;
-        if (!is_initialized) {
-            l = i + 1;
-            continue;
-        }
-
-        at_or_after = storage.twap_buffer.get((i + 1) % buffer_size);
-
-        let target_at_or_after = lte(current_time, before_or_at.timestamp, target_time);
-
-        // check if we've found the answer!
-        if (target_at_or_after && lte(current_time, target_time, at_or_after.timestamp)) {
-            break;
-        }
-
-        if (!target_at_or_after) {
-            r = i - 1;
-        } else {
-            l = i + 1;
-        }
-    }
-
-    (before_or_at, at_or_after)
-}
-
-#[storage(read)]fn get_surrounding_observations(
-    current_time: u64,
-    target: u64,
-    current_index: u64,
-    buffer_size: u64,
-    price_0: U256,
-    price_1: U256,
-) -> (Observation, Observation) {
-    // optimistically set before to the newest observation
-    let mut before_or_at = storage.twap_buffer.get(current_index);
-
-    // if the target is chronologically at or after the newest observation, we can early return
-    if (lte(current_time, before_or_at.timestamp, target)) {
-        if (before_or_at.timestamp == target) {
-            // if newest observation equals target, we're in the same block, so we can ignore at_or_after
-            return (before_or_at, Observation::empty());
-        } else {
-            // otherwise, we need to transform
-            return (before_or_at, transform(before_or_at, target, price_0, price_1));
-        }
-    }
-
-    // now, set before to the oldest observation
-    before_or_at = storage.twap_buffer.get((current_index + 1) % buffer_size);
-    let is_initialized = before_or_at.timestamp != 1;
-    if (!is_initialized) {
-        before_or_at = storage.twap_buffer.get(0);
-    }
-
-    // ensure that the target is chronologically at or after the oldest observation
-    require(lte(current_time, before_or_at.timestamp, target), Error::TargetObservationTooOld);
-
-    // if we've reached this point, we have to binary search
-    return binary_search(current_time, target, current_index, buffer_size);
-}
-
-
-#[storage(read)]fn observe_single(
-    seconds_ago: u64,
-    current_index: u64,
-    buffer_size: u64,
-    price_0: U256,
-    price_1: U256,
-) -> (U256, U256) {
-    let current_time = timestamp();
-    if (seconds_ago == 0) {
-        let mut last_observation = storage.twap_buffer.get(current_index);
-        if (last_observation.timestamp != current_time) {
-            last_observation = transform(last_observation, current_time, price_0, price_1);
-        }
-        return (last_observation.price_0_cumulative_last, last_observation.price_1_cumulative_last);
-    }
-
-    let target = current_time - seconds_ago;
-
-    let (before_or_at, at_or_after) = get_surrounding_observations(
-        current_time,
-        target,
-        current_index,
-        buffer_size,
-        price_0,
-        price_1,
-    );
-
-    if (target == before_or_at.timestamp) {
-        // we're at the left boundary
-        (before_or_at.price_0_cumulative_last, before_or_at.price_1_cumulative_last)
-    } else if (target == at_or_after.timestamp) {
-        // we're at the right boundary
-        (at_or_after.price_0_cumulative_last, at_or_after.price_1_cumulative_last)
-    } else {
-        // we're in the middle
-        let observation_time_delta = U256::from(0, 0, 0, at_or_after.timestamp - before_or_at.timestamp);
-        let target_delta = U256::from(0, 0, 0, target - before_or_at.timestamp);
-        let price_0_rate = (at_or_after.price_0_cumulative_last - before_or_at.price_0_cumulative_last) / observation_time_delta;
-        let price_1_rate = (at_or_after.price_1_cumulative_last - before_or_at.price_1_cumulative_last) / observation_time_delta;
-        return (
-            before_or_at.price_0_cumulative_last + (price_0_rate * target_delta),
-            before_or_at.price_1_cumulative_last + (price_1_rate * target_delta),
-        );
-    }
-}
-
 #[storage(read)]fn get_tokens() -> (b256, b256) {
     (
         get::<b256>(TOKEN_0_SLOT),
@@ -389,7 +236,6 @@ impl Exchange for Contract {
             token_0_reserve: storage.token0_reserve,
             token_1_reserve: storage.token1_reserve,
             lp_token_supply: storage.lp_token_supply,
-            twap_buffer_size: storage.twap_buffer_size,
         }
     }
 
@@ -411,6 +257,14 @@ impl Exchange for Contract {
             current_fee: get_current_fee(),
             change_rate: fees.change_rate,
             update_time: fees.update_time,
+        }
+    }
+
+    #[storage(read)]fn get_twap_info() -> TWAPInfo {
+        TWAPInfo {
+            current_element: storage.twap_buffer_current_element,
+            buffer_size: storage.twap_buffer_size,
+            next_buffer_size: storage.twap_next_buffer_size,
         }
     }
 
@@ -603,7 +457,7 @@ impl Exchange for Contract {
     }
 
     #[storage(read, write)]fn expand_twap_buffer(new_total_slots: u64) {
-        let mut i = storage.twap_next_buffer_size + 1;
+        let mut i = storage.twap_next_buffer_size;
 
         while i < new_total_slots {
             // The goal here is to initialize these slots (write a value), without
@@ -650,52 +504,7 @@ impl Exchange for Contract {
     }
 
     #[storage(read)]fn get_observation(slot: u64) -> Observation {
+        require(slot < storage.twap_buffer_size, Error::TWAPOutOfRange);
         storage.twap_buffer.get(slot)
     }
-    
-    #[storage(read)]fn observe(seconds_ago: u64) -> (U256, U256) {
-        let current_index = storage.twap_buffer_current_element;
-        let buffer_size = storage.twap_buffer_size;
-
-        let token_0_reserve = storage.token0_reserve;
-        let token_1_reserve = storage.token1_reserve;
-        let price_0 = U256::from(0, 0, 0, token_1_reserve) * TWAP_PERCISION / U256::from(0, 0, 0, token_0_reserve);
-        let price_1 = U256::from(0, 0, 0, token_0_reserve) * TWAP_PERCISION / U256::from(0, 0, 0, token_1_reserve);
-
-        observe_single(
-            seconds_ago,
-            current_index,
-            buffer_size,
-            price_0,
-            price_1,
-        )
-    }
-
-    // TODO: Observe multiple time periods in a single call, once vectors can be returned
-    // 
-    // #[storage(read)]fn observe(seconds_ago: Vec<u64>) -> Vec<(U256, U256)> {
-    //     let mut cumulatives: Vec<(U256, U256)> = Vec::with_capacity(seconds_ago.len());
-
-    //     let current_index = storage.twap_buffer_current_element;
-    //     let buffer_size = storage.twap_buffer_size;
-
-    //     let token_0_reserve = storage.token0_reserve;
-    //     let token_1_reserve = storage.token1_reserve;
-    //     let price_0 = token_0_reserve / token_1_reserve;
-    //     let price_1 = token_1_reserve / token_0_reserve;
-
-    //     let mut i = 0;
-    //     while i < seconds_ago.len() {
-    //         cumulatives.push(observe_single(
-    //             seconds_ago.get(i).unwrap(),
-    //             current_index,
-    //             buffer_size,
-    //             price_0,
-    //             price_1,
-    //         ));
-    //         i += 1;
-    //     }
-
-    //     cumulatives
-    // }
 }

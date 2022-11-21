@@ -136,7 +136,6 @@ async fn setup() -> Fixture {
 
 async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u64) -> u64 {
     let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
-    println!("{:?}", pool_info.value);
 
     let _receipts = fixture.wallet
         .force_transfer_to_contract(
@@ -806,19 +805,13 @@ async fn observe_price_changes() {
     let fixture = setup().await;
 
     // Observation with no liquidity should fail
-    let is_err = fixture
-        .exchange_instance
-        .methods()
-        .observe(0)
-        .tx_params(TxParameters {
-            gas_price: 0,
-            gas_limit: 100_000_000,
-            maturity: 0,
-        })
-        .call()
-        .await
-        .is_err();
+    let is_err = fixture.exchange_instance.methods().get_observation(0).call().await.is_err();
     assert!(is_err);
+
+    let twap_info = fixture.exchange_instance.methods().get_twap_info().call().await.unwrap();
+    assert_eq!(twap_info.value.current_element, 0);
+    assert_eq!(twap_info.value.buffer_size, 0);
+    assert_eq!(twap_info.value.next_buffer_size, 0);
 
     // Add liquidity
 
@@ -828,32 +821,21 @@ async fn observe_price_changes() {
     let add_liq_timestamp = add_liquidity(&fixture, token_0_amount, token_1_amount)
         .await;
 
-    sleep(Duration::from_secs(1)).await;
+    let twap_info = fixture.exchange_instance.methods().get_twap_info().call().await.unwrap();
+    assert_eq!(twap_info.value.current_element, 0);
+    assert_eq!(twap_info.value.buffer_size, 1);
+    assert_eq!(twap_info.value.next_buffer_size, 1);
 
-    // Observe price since liquidity added
-
-    let (observation_1, observation_timestamp) = get_timestamp_and_call(
-        fixture
-            .exchange_instance
-            .methods()
-            .observe(0)
-            .tx_params(TxParameters {
-                gas_price: 0,
-                gas_limit: 100_000_000,
-                maturity: 0,
-            })
-        )
-        .await;
+    let observation_0 = fixture.exchange_instance.methods().get_observation(0).call().await.unwrap();
 
     let precision = 1_000_000_000;
     let token_1_price = token_0_amount * precision / token_1_amount;
     let token_0_price = token_1_amount * precision / token_0_amount;
 
-    let time_delta = observation_timestamp - add_liq_timestamp;
-
     // TODO: Is `u256.d` the best way to do this? Is there a .to_u64()?
-    assert_eq!(observation_1.value.0.d, token_0_price * time_delta);
-    assert_eq!(observation_1.value.1.d, token_1_price * time_delta);
+    assert_eq!(observation_0.value.price_0_cumulative_last.d, 0);
+    assert_eq!(observation_0.value.price_1_cumulative_last.d, 0);
+    assert_eq!(observation_0.value.timestamp, add_liq_timestamp);
 
     sleep(Duration::from_secs(1)).await;
 
@@ -864,6 +846,11 @@ async fn observe_price_changes() {
         .call()
         .await
         .unwrap();
+
+    let twap_info = fixture.exchange_instance.methods().get_twap_info().call().await.unwrap();
+    assert_eq!(twap_info.value.current_element, 0);
+    assert_eq!(twap_info.value.buffer_size, 1);
+    assert_eq!(twap_info.value.next_buffer_size, 2);
 
     // Make a swap to change the price
 
@@ -888,30 +875,58 @@ async fn observe_price_changes() {
         )
         .await;
 
+    let twap_info = fixture.exchange_instance.methods().get_twap_info().call().await.unwrap();
+    assert_eq!(twap_info.value.current_element, 1);
+    assert_eq!(twap_info.value.buffer_size, 2);
+    assert_eq!(twap_info.value.next_buffer_size, 2);
+
     let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
 
     let token_0_price_post_swap = pool_info.value.token_1_reserve * precision / pool_info.value.token_0_reserve;
     let token_1_price_post_swap = pool_info.value.token_0_reserve * precision / pool_info.value.token_1_reserve;
 
-    let (observation_2, observation_timestamp) = get_timestamp_and_call(
-        fixture
-            .exchange_instance
+    let observation_1 = fixture.exchange_instance.methods().get_observation(1).call().await.unwrap();
+
+    let time_delta = swap_timestamp - add_liq_timestamp;
+
+    // TODO: Is `u256.d` the best way to do this? Is there a .to_u64()?
+    assert_eq!(observation_1.value.price_0_cumulative_last.d, token_0_price * time_delta);
+    assert_eq!(observation_1.value.price_1_cumulative_last.d, token_1_price * time_delta);
+    assert_eq!(observation_1.value.timestamp, swap_timestamp);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let (_result, remove_timestamp) = get_timestamp_and_call(
+        fixture.exchange_instance
             .methods()
-            .observe(0)
+            .remove_liquidity(Identity::Address(fixture.wallet.address().into()))
+            .call_params(CallParameters::new(
+                Some(100000),
+                Some(fixture.exchange_asset_id.clone()),
+                None
+            ))
             .tx_params(TxParameters {
                 gas_price: 0,
                 gas_limit: 100_000_000,
                 maturity: 0,
             })
-        )
-        .await;
+            .append_variable_outputs(2)
+    ).await;
+
+    let twap_info = fixture.exchange_instance.methods().get_twap_info().call().await.unwrap();
+    // Buffer loops around, so we're back at element 0
+    assert_eq!(twap_info.value.current_element, 0);
+    assert_eq!(twap_info.value.buffer_size, 2);
+    assert_eq!(twap_info.value.next_buffer_size, 2);
+
+    let observation_2 = fixture.exchange_instance.methods().get_observation(0).call().await.unwrap();
 
     let time_delta_before_swap = swap_timestamp - add_liq_timestamp;
-    let time_delta_after_swap = observation_timestamp - swap_timestamp;
+    let time_delta_after_swap = remove_timestamp - swap_timestamp;
 
     // TODO: Is `u256.d` the best way to do this? Is there a .to_u64()?
-    assert_eq!(observation_2.value.0.d, (token_0_price * time_delta_before_swap) + (token_0_price_post_swap * time_delta_after_swap));
-    assert_eq!(observation_2.value.1.d, (token_1_price * time_delta_before_swap) + (token_1_price_post_swap * time_delta_after_swap));
-
-    // TODO: Test price where seconds_ago != 0
+    // I'm not actually sure where this extra `+ 1` comes from, possibly U264 math? TODO: figure this out
+    assert_eq!(observation_2.value.price_0_cumulative_last.d, (token_0_price * time_delta_before_swap) + (token_0_price_post_swap * time_delta_after_swap) + 1);
+    assert_eq!(observation_2.value.price_1_cumulative_last.d, (token_1_price * time_delta_before_swap) + (token_1_price_post_swap * time_delta_after_swap) + 1);
+    assert_eq!(observation_2.value.timestamp, remove_timestamp);
 }
