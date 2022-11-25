@@ -1,37 +1,35 @@
 contract;
 
 use std::{
-    chain::auth::msg_sender,
+    address::Address,
+    auth::{
+        AuthError,
+        msg_sender,
+    },
+    b512::B512,
+    call_frames::msg_asset_id,
     context::{
         msg_amount,
-        call_frames::msg_asset_id,
+        this_balance,
     },
-};
-use exchange_abi::Exchange;
-
-use std::{
-    address::Address,
-    chain::auth::{AuthError},
-    b512::B512,
-    context::this_balance,
     contract_id::ContractId,
     identity::Identity,
     option::Option,
     result::Result,
-    revert::{revert, require},
+    revert::{
+        require,
+        revert,
+    },
     token::{
-        transfer,
         force_transfer_to_contract,
+        transfer,
     },
     u128::U128,
     vec::*,
 };
+use exchange_abi::Exchange;
 
-use microchain_helpers::{
-    quote,
-    get_input_price,
-    get_output_price,
-};
+use microchain_helpers::{get_input_price, get_output_price, quote};
 
 enum Error {
     InsufficentOutput: (),
@@ -54,40 +52,15 @@ struct SwapOutput {
 }
 
 abi Router {
-    fn add_liquidity(
-        pool: b256,
-        amount_a_desired: u64,
-        amount_b_desired: u64,
-        amount_a_min: u64,
-        amount_b_min: u64,
-        recipient: Identity,
-    ) -> AddLiquidityOutput;
+    fn add_liquidity(pool: b256, amount_a_desired: u64, amount_b_desired: u64, amount_a_min: u64, amount_b_min: u64, recipient: Identity) -> AddLiquidityOutput;
 
-    fn swap_exact_input(
-        pool: b256,
-        min_amount_out: u64,
-        recipient: Identity,
-    ) -> SwapOutput;
+    fn swap_exact_input(pool: b256, min_amount_out: u64, recipient: Identity) -> SwapOutput;
 
-    fn swap_exact_output(
-        pool: b256,
-        amount_out: u64,
-        max_amount_in: u64,
-        recipient: Identity,
-    ) -> SwapOutput;
+    fn swap_exact_output(pool: b256, amount_out: u64, max_amount_in: u64, recipient: Identity) -> SwapOutput;
 
-    fn swap_exact_input_multihop(
-        pools: Vec<b256>,
-        min_amount_out: u64,
-        recipient: Identity,
-    ) -> SwapOutput;
+    fn swap_exact_input_multihop(pools: Vec<b256>, min_amount_out: u64, recipient: Identity) -> SwapOutput;
 
-    fn swap_exact_output_multihop(
-        pools: Vec<b256>,
-        amount_out: u64,
-        max_amount_in: u64,
-        recipient: Identity,
-    ) -> SwapOutput;
+    fn swap_exact_output_multihop(pools: Vec<b256>, amount_out: u64, max_amount_in: u64, recipient: Identity) -> SwapOutput;
 
     // Used to allow easy token deposits, should be removed before prod
     fn null();
@@ -111,7 +84,9 @@ impl Router for Contract {
 
         let mut amount_a = 0;
         let mut amount_b = 0;
-        if (pool_info.token_0_reserve == 0 && pool_info.token_1_reserve == 0) {
+        if (pool_info.token_0_reserve == 0
+            && pool_info.token_1_reserve == 0)
+        {
             amount_a = amount_a_desired;
             amount_b = amount_b_desired;
         } else {
@@ -151,11 +126,7 @@ impl Router for Contract {
         }
     }
 
-    fn swap_exact_input(
-        pool: b256,
-        min_amount_out: u64,
-        recipient: Identity,
-    ) -> SwapOutput {
+    fn swap_exact_input(pool: b256, min_amount_out: u64, recipient: Identity) -> SwapOutput {
         let exchange = abi(Exchange, pool);
         let input_asset: b256 = msg_asset_id().into();
 
@@ -167,22 +138,26 @@ impl Router for Contract {
         let fee_info = exchange.get_fee_info();
         let mut input = msg_amount();
         if (fee_info.current_fee > 0) {
-            let fee = (U128::from(0, input) * U128::from(0, fee_info.current_fee) / U128::from(0, 1_000_000))
-                .as_u64()
-                .unwrap();
+            let fee = (U128::from((0, input)) * U128::from((0, fee_info.current_fee)) / U128::from((0, 1_000_000))).as_u64().unwrap();
             input = input - fee;
         }
 
         let (out0, out1) = if token0 == input_asset {
-            (0, get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve))
+            (
+                0,
+                get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve),
+            )
         } else {
-            (get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
+            (
+                get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve),
+                0,
+            )
         };
 
         let output_amount = if token0 == input_asset { out1 } else { out0 };
         require(output_amount >= min_amount_out, Error::InsufficentOutput);
 
-        exchange.swap{
+        exchange.swap {
             asset_id: input_asset,
             coins: msg_amount(),
         }(out0, out1, recipient);
@@ -208,23 +183,31 @@ impl Router for Contract {
         require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
 
         let (input_amount, out0, out1) = if token0 == input_asset {
-            (get_output_price(amount_out, pool_info.token_0_reserve, pool_info.token_1_reserve), 0, amount_out)
+            (
+                get_output_price(amount_out, pool_info.token_0_reserve, pool_info.token_1_reserve),
+                0,
+                amount_out,
+            )
         } else {
-            (get_output_price(amount_out, pool_info.token_1_reserve, pool_info.token_0_reserve), amount_out, 0)
+            (
+                get_output_price(amount_out, pool_info.token_1_reserve, pool_info.token_0_reserve),
+                amount_out,
+                0,
+            )
         };
 
         let fee_info = exchange.get_fee_info();
         let mut input_amount_with_fee = input_amount;
         if (fee_info.current_fee > 0) {
-            let percision = U128::from(0, 1_000_000);
-            let numerator = U128::from(0, input_amount) * percision;
-            let denominator = percision - U128::from(0, fee_info.current_fee);
+            let percision = U128::from((0, 1_000_000));
+            let numerator = U128::from((0, input_amount)) * percision;
+            let denominator = percision - U128::from((0, fee_info.current_fee));
             input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
         }
 
         require(input_amount_with_fee <= max_amount_in, Error::ExcessiveInput);
 
-        exchange.swap{
+        exchange.swap {
             asset_id: input_asset,
             coins: input_amount_with_fee,
         }(out0, out1, recipient);
@@ -240,7 +223,6 @@ impl Router for Contract {
         }
     }
 
-
     fn swap_exact_input_multihop(
         pools: Vec<b256>,
         min_amount_out: u64,
@@ -255,7 +237,7 @@ impl Router for Contract {
         let mut i = 0;
         while i < pools.len() {
             let pool_id = pools.get(i).unwrap();
-            let exchange = abi(Exchange,pool_id);
+            let exchange = abi(Exchange, pool_id);
             let (token0, token1) = exchange.get_tokens();
             let pool_info = exchange.get_pool_info();
 
@@ -264,26 +246,30 @@ impl Router for Contract {
             let fee_info = exchange.get_fee_info();
             let mut input = output_amount;
             if (fee_info.current_fee > 0) {
-                let fee = (U128::from(0, input) * U128::from(0, fee_info.current_fee) / U128::from(0, 1_000_000))
-                    .as_u64()
-                    .unwrap();
+                let fee = (U128::from((0, input)) * U128::from((0, fee_info.current_fee)) / U128::from((0, 1_000_000))).as_u64().unwrap();
                 input = input - fee;
             }
 
             let (out0, out1) = if token0 == input_asset {
-                (0, get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve))
+                (
+                    0,
+                    get_input_price(input, pool_info.token_0_reserve, pool_info.token_1_reserve),
+                )
             } else {
-                (get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve), 0)
+                (
+                    get_input_price(input, pool_info.token_1_reserve, pool_info.token_0_reserve),
+                    0,
+                )
             };
 
             let swap_recipient = if i == pools.len() - 1 {
                 recipient
-                } else {
-                    Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
-                };
+            } else {
+                Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
+            };
 
             if i == 0 {
-                exchange.swap{
+                exchange.swap {
                     asset_id: input_asset,
                     coins: msg_amount(),
                 }(out0, out1, swap_recipient);
@@ -292,7 +278,11 @@ impl Router for Contract {
                 exchange.swap(out0, out1, swap_recipient);
             }
 
-            let (_output_amount, _input_asset) = if token0 == input_asset { (out1, token1) } else { (out0, token0) };
+            let (_output_amount, _input_asset) = if token0 == input_asset {
+                (out1, token1)
+            } else {
+                (out0, token0)
+            };
             output_amount = _output_amount;
             input_asset = _input_asset;
 
@@ -330,8 +320,12 @@ impl Router for Contract {
             let (token0, token1) = exchange.get_tokens();
             let input_asset = input_assets.get(i).unwrap();
             require(token0 == input_asset || token1 == input_asset, Error::InvalidToken);
-            
-            input_assets.push(if input_asset == token0 { token1 } else { token0 });
+
+            input_assets.push(if input_asset == token0 {
+                token1
+            } else {
+                token0
+            });
 
             // Hacky way to create an empty vector, hopefully there's a method added
             input_amounts.push(0);
@@ -361,9 +355,9 @@ impl Router for Contract {
             let fee_info = exchange.get_fee_info();
             let mut input_amount_with_fee = input_amount;
             if (fee_info.current_fee > 0) {
-                let percision = U128::from(0, 1_000_000);
-                let numerator = U128::from(0, input_amount) * percision;
-                let denominator = percision - U128::from(0, fee_info.current_fee);
+                let percision = U128::from((0, 1_000_000));
+                let numerator = U128::from((0, input_amount)) * percision;
+                let denominator = percision - U128::from((0, fee_info.current_fee));
                 input_amount_with_fee = (numerator / denominator).as_u64().unwrap();
             }
 
@@ -380,7 +374,7 @@ impl Router for Contract {
         i = 0;
         while i < pools.len() {
             let pool_id = pools.get(i).unwrap();
-            let exchange = abi(Exchange,pool_id);
+            let exchange = abi(Exchange, pool_id);
             let (token0, token1) = exchange.get_tokens();
             let pool_info = exchange.get_pool_info();
 
@@ -388,16 +382,20 @@ impl Router for Contract {
             let input_amount = input_amounts.get(i).unwrap();
             let output_amount = output_amounts.get(i).unwrap();
 
-            let (out0, out1) = if token0 == input_asset { (0, output_amount) } else { (output_amount, 0) };
+            let (out0, out1) = if token0 == input_asset {
+                (0, output_amount)
+            } else {
+                (output_amount, 0)
+            };
 
             let swap_recipient = if i == pools.len() - 1 {
-                    recipient
-                } else {
-                    Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
-                };
+                recipient
+            } else {
+                Identity::ContractId(ContractId::from(pools.get(i + 1).unwrap()))
+            };
 
             if i == 0 {
-                exchange.swap{
+                exchange.swap {
                     asset_id: input_asset,
                     coins: input_amount,
                 }(out0, out1, swap_recipient);
