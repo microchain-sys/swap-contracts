@@ -69,6 +69,14 @@ async fn register_exchange() {
         .await
         .unwrap();
 
+    let result = registry_instance
+        .methods()
+        .is_pool(Bits256(exchange_contract_id.hash().into()))
+        .call()
+        .await
+        .unwrap();
+    assert!(!result.value, "is_pool shouldn't return true");
+
     // Test storage
     registry_instance
         .methods()
@@ -104,6 +112,14 @@ async fn register_exchange() {
         .await
         .unwrap();
     assert_eq!(result.value, None);
+
+    let result = registry_instance
+        .methods()
+        .is_pool(Bits256(exchange_contract_id.hash().into()))
+        .call()
+        .await
+        .unwrap();
+    assert!(result.value, "is_pool should return true");
 }
 
 #[tokio::test]

@@ -21,11 +21,14 @@ abi PoolRegistry {
     // Get exchange contract for desired token
     #[storage(read)]
     fn get_exchange_contract(token_a: b256, token_b: b256) -> Option<b256>;
+    #[storage(read)]
+    fn is_pool(addr: b256) -> bool;
 }
 
 storage {
     expected_contract_root: b256 = b256::min(),
     pools: StorageMap<(b256, b256), b256> = StorageMap {},
+    is_pool: StorageMap<b256, bool> = StorageMap {},
 }
 
 impl PoolRegistry for Contract {
@@ -53,6 +56,7 @@ impl PoolRegistry for Contract {
         require(pool_info.lp_token_supply == 0, Error::PoolInitialized);
 
         storage.pools.insert((token0, token1), exchange_id);
+        storage.is_pool.insert(exchange_id, true);
     }
 
     #[storage(read)]
@@ -69,5 +73,10 @@ impl PoolRegistry for Contract {
         } else {
             Option::Some(exchange)
         }
+    }
+
+    #[storage(read)]
+    fn is_pool(addr: b256) -> bool {
+        storage.is_pool.get(addr)
     }
 }
