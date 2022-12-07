@@ -3,6 +3,7 @@ use fuels::{
     prelude::*,
     fuels_abigen::abigen,
 };
+use test_helpers::get_wallets;
 
 ///////////////////////////////
 // Load the Token Contract abi
@@ -11,13 +12,7 @@ abigen!(TestToken, "./out/debug/token_contract-abi.json");
 
 #[tokio::test]
 async fn token_contract() {
-    let num_wallets = 3;
-    let num_coins = 1;
-    // default initial amount 1000000000
-    let initial_amount = 1000000000;
-    let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(initial_amount));
-
-    let wallets = launch_custom_provider_and_get_wallets(config, None).await;
+    let wallets = get_wallets().await;
     let wallet_owner = wallets.get(0).unwrap();
     let wallet_mint1 = wallets.get(1).unwrap();
     let wallet_mint2 = wallets.get(2).unwrap();
@@ -52,7 +47,7 @@ async fn token_contract() {
         .call()
         .await
         .unwrap();
-    
+
     // Contract can be initialized only once
     let is_error = token_instance
         .methods()

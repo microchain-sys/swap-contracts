@@ -7,7 +7,7 @@ use fuels::{
     signers::WalletUnlocked,
 };
 use tokio::time::{sleep, Duration};
-
+use test_helpers::{get_timestamp_and_call, get_wallets};
 
 ///////////////////////////////
 // Load the Vault Contract abi
@@ -21,11 +21,7 @@ struct Fixture {
 }
 
 async fn setup() -> Fixture {
-    let num_wallets = 1;
-    let num_coins = 1;
-    let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(1000000000));
-  
-    let mut wallets = launch_custom_provider_and_get_wallets(config, None).await;
+    let mut wallets = get_wallets().await;
     let wallet = wallets.pop().unwrap();
 
     //////////////////////////////////////////
@@ -41,7 +37,7 @@ async fn setup() -> Fixture {
     .await
     .unwrap();
 
-    let vault_instance = TestVault::new(vault_contract_id.to_string(), wallet.clone());
+    let vault_instance = TestVault::new(vault_contract_id.clone(), wallet.clone());
 
     Fixture {
         wallet: wallet,
@@ -56,31 +52,25 @@ async fn set_fee() {
 
     // Add liquidity for the second time. Keeping the proportion 1:2
     // It should return the same amount of LP as the amount of ETH deposited
-    let _result = fixture.vault_instance
-        .methods()
-        .set_fees(100, 1)
-        .call()
-        .await
-        .unwrap();
+    let (_result, set_timestamp) = get_timestamp_and_call(
+        fixture.vault_instance
+            .methods()
+            .set_fees(100, 1)
+    ).await;
 
-    let returned_fees = fixture.vault_instance.methods().get_fees().call().await.unwrap();
+    let (returned_fees, returned_timestamp) = get_timestamp_and_call(fixture.vault_instance.methods().get_fees()).await;
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-
-    assert!(now.as_secs() - returned_fees.value.start_time as u64 <= 1);
+    assert!(returned_timestamp - set_timestamp <= 1);
     assert_eq!(returned_fees.value.start_fee, 100);
     assert_eq!(returned_fees.value.current_fee, 100);
     assert_eq!(returned_fees.value.change_rate, 1);
 
     sleep(Duration::from_secs(2)).await;
 
-    let returned_fees = fixture.vault_instance.methods().get_fees().call().await.unwrap();
+    let (returned_fees, returned_timestamp) = get_timestamp_and_call(fixture.vault_instance.methods().get_fees()).await;
 
-    assert!(now.as_secs() - returned_fees.value.start_time as u64 <= 1);
     assert_eq!(returned_fees.value.start_fee, 100);
-    assert_eq!(returned_fees.value.current_fee, 98);
+    assert_eq!(returned_fees.value.current_fee as u64, 100 - (1 * (returned_timestamp - set_timestamp)));
     assert_eq!(returned_fees.value.change_rate, 1);
 }
 

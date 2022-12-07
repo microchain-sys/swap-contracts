@@ -1,17 +1,12 @@
 contract;
 
-use core::num::*;
 use std::{
-    address::*,
+    auth::{msg_sender, AuthError},
     block::timestamp,
-    chain::auth::*,
+    call_frames::contract_id,
     constants::ZERO_B256,
-    context::{*, call_frames::*},
     contract_id::ContractId,
     identity::Identity,
-    result::*,
-    storage::*,
-    token::*,
 };
 
 use exchange_abi::{Exchange};
@@ -34,7 +29,7 @@ struct StoredFees {
 
 
 storage {
-    owner: Identity = Identity::Address(~Address::from(ZERO_B256)),
+    owner: Identity = Identity::Address(Address::from(ZERO_B256)),
     fees: StoredFees = StoredFees {
         start_time: 0,
         start_fee: 0,
@@ -65,10 +60,10 @@ impl Vault for Contract {
 
         let owner = storage.owner;
         require(
-            sender.unwrap() == owner || owner == Identity::Address(~Address::from(ZERO_B256)),
+            sender.unwrap() == owner || owner == Identity::Address(Address::from(ZERO_B256)),
             Error::MustBeCalledByOwner
         );
-        if (owner == Identity::Address(~Address::from(ZERO_B256))) {
+        if (owner == Identity::Address(Address::from(ZERO_B256))) {
             storage.owner = sender.unwrap();
         }
 

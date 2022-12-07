@@ -6,12 +6,9 @@ name = "tests"
 version = "0.0.0"
 
 [dependencies]
-fuel-gql-client = { version = "0.6", default-features = false }
-fuel-tx = "0.12.1"
-fuels = "0.25.1"
-
-rand = "0.8"
+fuels = { version = "0.31.1", features = ["fuel-core-lib"] }
 tokio = { version = "1.15", features = ["rt", "macros"] }
+test_helpers = { path = "../test_helpers" }
 
 [[test]]
 harness = true

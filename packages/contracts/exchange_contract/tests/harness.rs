@@ -11,7 +11,7 @@ use fuels::{
     tx::{AssetId, Bytes32, StorageSlot},
 };
 use tokio::time::{sleep, Duration};
-use test_helpers::get_timestamp_and_call;
+use test_helpers::{get_timestamp_and_call, get_wallets};
 
 ///////////////////////////////
 // Load the Exchange Contract abi
@@ -44,14 +44,8 @@ fn to_9_decimal(num: u64) -> u64 {
 }
 
 async fn setup() -> Fixture {
-    let num_wallets = 1;
-    let num_coins = 1;
-    let amount = to_9_decimal(10000);
-    let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(amount));
-  
-    let wallets = launch_custom_provider_and_get_wallets(config, None).await;
+    let wallets = get_wallets().await;
     let wallet = wallets.get(0).unwrap().clone();
-    // let wallet = launch_provider_and_get_wallet().await;
 
     //////////////////////////////////////////
     // Setup contracts
@@ -135,7 +129,11 @@ async fn setup() -> Fixture {
 }
 
 async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u64) -> u64 {
-    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    let starting_token_0_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    assert!(starting_token_0_balance >= token_0_amount, "Insufficient token 0");
+
+    let starting_token_1_balance = fixture.wallet.get_asset_balance(&fixture.token_asset_id).await.unwrap();
+    assert!(starting_token_1_balance >= token_1_amount, "Insufficient token 1");
 
     let _receipts = fixture.wallet
         .force_transfer_to_contract(
@@ -144,7 +142,8 @@ async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u
             BASE_ASSET_ID,
             TxParameters::default()
         )
-        .await;
+        .await
+        .unwrap();
 
     // Deposit some Token Asset
     let _receipts = fixture.wallet
@@ -154,7 +153,8 @@ async fn add_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_amount: u
             fixture.token_asset_id.clone(),
             TxParameters::default()
         )
-        .await;
+        .await
+        .unwrap();
 
     let handler = fixture.exchange_instance
         .methods()
@@ -224,24 +224,22 @@ async fn mint() {
         .await
         .unwrap();
 
-    assert_eq!(result.value, expected_liquidity - 1000);
+    let liquidity_logs = fixture.exchange_instance.logs_with_type::<LiquidityAdded>(&result.receipts).unwrap();
+    assert_eq!(liquidity_logs.len(), 2);
 
-    let swap_logs = fixture.exchange_instance.logs_with_type::<LiquidityAdded>(&result.receipts).unwrap();
-    assert_eq!(swap_logs.len(), 2);
+    let liquidity_event = liquidity_logs.get(0).unwrap();
+    assert_eq!(liquidity_event.sender, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(liquidity_event.recipient, Bits256([0; 32]));
+    assert_eq!(liquidity_event.amount_0, 0);
+    assert_eq!(liquidity_event.amount_1, 0);
+    assert_eq!(liquidity_event.lp_tokens, 1000);
 
-    let swap_event = swap_logs.get(0).unwrap();
-    assert_eq!(swap_event.sender, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.recipient, Bits256([0; 32]));
-    assert_eq!(swap_event.amount_0, 0);
-    assert_eq!(swap_event.amount_1, 0);
-    assert_eq!(swap_event.lp_tokens, 1000);
-
-    let swap_event = swap_logs.get(1).unwrap();
-    assert_eq!(swap_event.sender, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.recipient, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.amount_0, token_0_amount);
-    assert_eq!(swap_event.amount_1, token_1_amount);
-    assert_eq!(swap_event.lp_tokens, expected_liquidity - 1000);
+    let liquidity_event = liquidity_logs.get(1).unwrap();
+    assert_eq!(liquidity_event.sender, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(liquidity_event.recipient, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(liquidity_event.amount_0, token_0_amount);
+    assert_eq!(liquidity_event.amount_1, token_1_amount);
+    assert_eq!(liquidity_event.lp_tokens, expected_liquidity - 1000);
 
     let reserve_logs = fixture.exchange_instance.logs_with_type::<UpdateReserves>(&result.receipts).unwrap();
     assert_eq!(reserve_logs.len(), 1);
@@ -535,14 +533,14 @@ async fn burn() {
         .await
         .unwrap();
 
-    let swap_logs = fixture.exchange_instance.logs_with_type::<LiquidityRemoved>(&receipt.receipts).unwrap();
-    assert_eq!(swap_logs.len(), 1);
-    let swap_event = swap_logs.get(0).unwrap();
-    assert_eq!(swap_event.sender, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.recipient, Bits256(fixture.wallet.address().hash().into()));
-    assert_eq!(swap_event.amount_0, token_0_amount - 1000);
-    assert_eq!(swap_event.amount_1, token_1_amount - 1000);
-    assert_eq!(swap_event.lp_tokens, expected_liquidity);
+    let burn_logs = fixture.exchange_instance.logs_with_type::<LiquidityRemoved>(&receipt.receipts).unwrap();
+    assert_eq!(burn_logs.len(), 1);
+    let burn_event = burn_logs.get(0).unwrap();
+    assert_eq!(burn_event.sender, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(burn_event.recipient, Bits256(fixture.wallet.address().hash().into()));
+    assert_eq!(burn_event.amount_0, token_0_amount - 1000);
+    assert_eq!(burn_event.amount_1, token_1_amount - 1000);
+    assert_eq!(burn_event.lp_tokens, expected_liquidity);
 
     let reserve_logs = fixture.exchange_instance.logs_with_type::<UpdateReserves>(&receipt.receipts).unwrap();
     assert_eq!(reserve_logs.len(), 1);
@@ -729,9 +727,9 @@ async fn accrue_protocol_fees() {
 
     let logs = fixture.exchange_instance.logs_with_type::<ProtocolFeeWithdrawn>(&result.receipts).unwrap();
     assert_eq!(logs.len(), 1);
-    let swap_event = logs.get(0).unwrap();
-    assert_eq!(swap_event.amount_0, expected_fee_0);
-    assert_eq!(swap_event.amount_1, expected_fee_1);
+    let fee_withdraw_event = logs.get(0).unwrap();
+    assert_eq!(fee_withdraw_event.amount_0, expected_fee_0);
+    assert_eq!(fee_withdraw_event.amount_1, expected_fee_1);
 
     let fee_info = fixture.exchange_instance.methods().get_vault_info().call().await.unwrap();
     assert_eq!(fee_info.value.token_0_protocol_fees_collected, 0);

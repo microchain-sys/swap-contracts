@@ -224,6 +224,28 @@ fn cache_vault_fees(vault: b256) {
     };
 }
 
+fn sqrt_by_digit(n: U128) -> U128 {
+    let mut x = n;
+    let mut c = U128::min();
+    let mut d = U128::from((0, 1)) << U128::bits() - 2;
+
+    while d > n {
+        d = d >> 2;
+    }
+
+    while d != U128::min() {
+        if x > c + d || x == c + d { // TODO: gte
+            x = x - (c + d);
+            c = (c >> 1) + d;
+        } else {
+            c = c >> 1;
+        }
+        d  = d >> 2;
+    }
+
+    c
+}
+
 // ////////////////////////////////////////
 // // ABI definitions
 // ////////////////////////////////////////
@@ -292,8 +314,7 @@ impl Exchange for Contract {
 
         let (current_token_0_amount, current_token_1_amount) = get_pool_balance();
 
-        assert(current_token_0_amount > 0);
-        assert(current_token_1_amount > 0);
+        require(current_token_0_amount > 0 && current_token_1_amount > 0, Error::InsufficentInput);
 
         let mut minted: u64 = 0;
         if total_liquidity > 0 {
@@ -311,7 +332,9 @@ impl Exchange for Contract {
             mint(minted);
             storage.lp_token_supply = total_liquidity + minted;
         } else {
-            let initial_liquidity = (U128::from((0, current_token_0_amount)) * U128::from((0, current_token_1_amount))).sqrt().as_u64().unwrap() - MINIMUM_LIQUIDITY;
+            let big_amount_0 = U128::from((0, current_token_0_amount));
+            let big_amount_1 = U128::from((0, current_token_1_amount));
+            let initial_liquidity = sqrt_by_digit(big_amount_0 * big_amount_1).as_u64().unwrap() - MINIMUM_LIQUIDITY;
 
             // Ensure there's at least 1 TWAP slot
             storage.twap_buffer_size = 1;

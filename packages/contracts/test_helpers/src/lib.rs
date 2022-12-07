@@ -4,7 +4,18 @@ use fuels::{
   client::types::TransactionStatus,
   contract::contract::{CallResponse, ContractCallHandler},
   prelude::*,
+  tx::UniqueIdentifier,
 };
+
+pub async fn get_wallets() -> Vec<WalletUnlocked> {
+    let num_wallets = 3;
+    let num_coins = 1;
+    let initial_amount = 10_000_000_000_000;
+    let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(initial_amount));
+
+    let wallets = launch_custom_provider_and_get_wallets(config, None, None).await;
+    wallets
+}
 
 pub async fn get_timestamp_and_call<T>(handler: ContractCallHandler<T>) -> (CallResponse<T>, u64)
 where
@@ -20,7 +31,7 @@ where
         TransactionStatus::Success { time, .. } => time,
         _ => panic!("tx failed"),
     };
-    let time = time.timestamp() as u64;
+    let time = time.0;
 
     (call_response, time)
 }
