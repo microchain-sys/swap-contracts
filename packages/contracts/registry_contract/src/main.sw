@@ -1,6 +1,12 @@
 contract;
 
-use std::{contract_id::ContractId, external::bytecode_root, option::Option, storage::StorageMap};
+use std::{
+    constants::ZERO_B256,
+    contract_id::ContractId,
+    external::bytecode_root,
+    option::Option,
+    storage::StorageMap,
+};
 use core::num::*;
 use exchange_abi::Exchange;
 
@@ -23,10 +29,12 @@ abi PoolRegistry {
     fn get_exchange_contract(token_a: b256, token_b: b256) -> Option<b256>;
     #[storage(read)]
     fn is_pool(addr: b256) -> bool;
+    #[storage(read)]
+    fn exchange_contract_root() -> b256;
 }
 
 storage {
-    expected_contract_root: b256 = b256::min(),
+    expected_contract_root: b256 = ZERO_B256,
     pools: StorageMap<(b256, b256), b256> = StorageMap {},
     is_pool: StorageMap<b256, bool> = StorageMap {},
 }
@@ -34,7 +42,7 @@ storage {
 impl PoolRegistry for Contract {
     #[storage(write, read)]
     fn initialize(template_exchange_id: b256) {
-        require(storage.expected_contract_root == b256::min(), Error::AlreadyInitialized);
+        require(storage.expected_contract_root == ZERO_B256, Error::AlreadyInitialized);
         let root = bytecode_root(ContractId::from(template_exchange_id));
         storage.expected_contract_root = root;
     }
@@ -78,5 +86,10 @@ impl PoolRegistry for Contract {
     #[storage(read)]
     fn is_pool(addr: b256) -> bool {
         storage.is_pool.get(addr)
+    }
+
+    #[storage(read)]
+    fn exchange_contract_root() -> b256 {
+        storage.expected_contract_root
     }
 }

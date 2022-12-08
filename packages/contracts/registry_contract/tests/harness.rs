@@ -18,6 +18,8 @@ abigen!(
     "../token_contract/out/debug/token_contract-abi.json"
 );
 
+const ZERO_B256: Bits256 = Bits256([0; 32]);
+
 #[tokio::test]
 async fn register_exchange() {
     // Provider and Wallet
@@ -62,12 +64,18 @@ async fn register_exchange() {
     .await
     .unwrap();
 
+    let root = registry_instance.methods().exchange_contract_root().simulate().await.unwrap();
+    assert_eq!(root.value, ZERO_B256, "Registry should be uninitialized");
+
     registry_instance
         .methods()
         .initialize(Bits256(exchange_contract_id.hash().into()))
         .call()
         .await
         .unwrap();
+
+    let root = registry_instance.methods().exchange_contract_root().simulate().await.unwrap();
+    assert_ne!(root.value, ZERO_B256, "Registry should be initialized");
 
     let result = registry_instance
         .methods()
