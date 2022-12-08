@@ -2,51 +2,95 @@
 /* tslint:disable */
 /* eslint-disable */
 
-import type { Provider, Wallet, AbstractAddress } from 'fuels';
+import type { Provider, BaseWalletLocked, AbstractAddress } from 'fuels';
 import { Interface, Contract } from 'fuels';
 import type { CounterContractAbi, CounterContractAbiInterface } from '../CounterContractAbi';
-const _abi = [
-  {
-    type: 'function',
-    name: 'increment',
-    inputs: [],
-    outputs: [
-      {
-        type: '()',
+const _abi = {
+  types: [
+    {
+      typeId: 0,
+      type: '()',
+      components: [],
+      typeParameters: null,
+    },
+    {
+      typeId: 1,
+      type: 'struct Increased',
+      components: [
+        {
+          name: 'amount',
+          type: 2,
+          typeArguments: null,
+        },
+        {
+          name: 'new_count',
+          type: 2,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 2,
+      type: 'u64',
+      components: null,
+      typeParameters: null,
+    },
+  ],
+  functions: [
+    {
+      inputs: [],
+      name: 'increment',
+      output: {
         name: '',
-        components: [],
+        type: 0,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'increase',
-    inputs: [
-      {
-        type: 'u64',
-        name: 'amount',
-      },
-    ],
-    outputs: [
-      {
-        type: '()',
+    },
+    {
+      inputs: [
+        {
+          name: 'amount',
+          type: 2,
+          typeArguments: null,
+        },
+      ],
+      name: 'increase',
+      output: {
         name: '',
-        components: [],
+        type: 0,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'counter',
-    inputs: [],
-    outputs: [
-      {
-        type: 'u64',
+    },
+    {
+      inputs: [],
+      name: 'counter',
+      output: {
         name: '',
+        type: 2,
+        typeArguments: null,
       },
-    ],
-  },
-];
+    },
+  ],
+  loggedTypes: [
+    {
+      logId: 165396,
+      loggedType: {
+        name: '',
+        type: 1,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 165422,
+      loggedType: {
+        name: '',
+        type: 1,
+        typeArguments: [],
+      },
+    },
+  ],
+};
 
 export class CounterContractAbi__factory {
   static readonly abi = _abi;
@@ -55,7 +99,7 @@ export class CounterContractAbi__factory {
   }
   static connect(
     id: string | AbstractAddress,
-    walletOrProvider: Wallet | Provider
+    walletOrProvider: BaseWalletLocked | Provider
   ): CounterContractAbi {
     return new Contract(id, _abi, walletOrProvider) as unknown as CounterContractAbi;
   }

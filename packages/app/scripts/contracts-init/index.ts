@@ -26,7 +26,8 @@ if (!WALLET_SECRET) {
 }
 
 async function main() {
-  const wallet = new Wallet(WALLET_SECRET!, PROVIDER_URL);
+  const wallet = Wallet.fromPrivateKey(WALLET_SECRET!, PROVIDER_URL);
+  console.log('using wallet', wallet.address.toHexString());
 
   if (!ROUTER_CONTRACT_ID || !VITE_EXCHANGE_1_ID || !VITE_EXCHANGE_2_ID || !VITE_TOKEN_1_ID || !VITE_TOKEN_2_ID || !REGISTRY_CONTRACT_ID) {
     console.error('Contract addresses missing');
@@ -41,15 +42,17 @@ async function main() {
   const token1Contract = TokenContractAbi__factory.connect(VITE_TOKEN_1_ID!, wallet);
   const token2Contract = TokenContractAbi__factory.connect(VITE_TOKEN_2_ID!, wallet);
   const overrides = {
-    gasPrice: bn(GAS_PRICE || 0),
+    gasPrice: bn(GAS_PRICE || 1),
   };
+
+  console.log('Starting');
 
   await initializeTokenContract(token1Contract, overrides);
   await initializeTokenContract(token2Contract, overrides);
-  await initializePool(routerContract, token1Contract, exchange1Contract, overrides);
-  await initializePool(routerContract, token2Contract, exchange2Contract, overrides);
   await registerPool(registryContract, exchange1Contract, overrides);
   await registerPool(registryContract, exchange2Contract, overrides);
+  await initializePool(routerContract, token1Contract, exchange1Contract, overrides);
+  await initializePool(routerContract, token2Contract, exchange2Contract, overrides);
 }
 
 main();

@@ -36,6 +36,11 @@ export default createConfig({
       options: getDeployOptions(),
     },
     {
+      name: 'VAULT_CONTRACT_ID',
+      path: './packages/contracts/vault_contract',
+      options: getDeployOptions(),
+    },
+    {
       name: 'VITE_TOKEN_1_ID',
       path: './packages/contracts/token_contract',
       options: getDeployOptions({ salt: 1 + saltBase }),

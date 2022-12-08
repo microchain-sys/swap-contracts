@@ -15,6 +15,47 @@ import type {
 
 import type { Enum, Option } from './common';
 
+export type AddressInput = { value: string };
+
+export type AddressOutput = { value: string };
+
+export type ContractIdInput = { value: string };
+
+export type ContractIdOutput = { value: string };
+
+export type FeeInfoInput = {
+  current_fee: BigNumberish;
+  change_rate: BigNumberish;
+  update_time: BigNumberish;
+};
+
+export type FeeInfoOutput = {
+  current_fee: number;
+  change_rate: number;
+  update_time: number;
+};
+
+export type U256Input = {
+  a: BigNumberish;
+  b: BigNumberish;
+  c: BigNumberish;
+  d: BigNumberish;
+};
+
+export type U256Output = { a: BN; b: BN; c: BN; d: BN };
+
+export type ObservationInput = {
+  timestamp: BigNumberish;
+  price_0_cumulative_last: U256Input;
+  price_1_cumulative_last: U256Input;
+};
+
+export type ObservationOutput = {
+  timestamp: BN;
+  price_0_cumulative_last: U256Output;
+  price_1_cumulative_last: U256Output;
+};
+
 export type PoolInfoInput = {
   token_0_reserve: BigNumberish;
   token_1_reserve: BigNumberish;
@@ -27,13 +68,35 @@ export type PoolInfoOutput = {
   lp_token_supply: BN;
 };
 
-export type AddressInput = { value: string };
+export type TWAPInfoInput = {
+  current_element: BigNumberish;
+  buffer_size: BigNumberish;
+  next_buffer_size: BigNumberish;
+};
 
-export type AddressOutput = { value: string };
+export type TWAPInfoOutput = {
+  current_element: BN;
+  buffer_size: BN;
+  next_buffer_size: BN;
+};
 
-export type ContractIdInput = { value: string };
+export type VaultInfoInput = {
+  vault: string;
+  token0_protocol_fees_collected: BigNumberish;
+  token1_protocol_fees_collected: BigNumberish;
+  current_fee: BigNumberish;
+  change_rate: BigNumberish;
+  update_time: BigNumberish;
+};
 
-export type ContractIdOutput = { value: string };
+export type VaultInfoOutput = {
+  vault: string;
+  token0_protocol_fees_collected: BN;
+  token1_protocol_fees_collected: BN;
+  current_fee: number;
+  change_rate: number;
+  update_time: number;
+};
 
 export type RemoveLiquidityInfoInput = {
   token_0_amount: BigNumberish;
@@ -44,10 +107,6 @@ export type RemoveLiquidityInfoOutput = {
   token_0_amount: BN;
   token_1_amount: BN;
 };
-
-export type PreviewInfoInput = { amount: BigNumberish; has_liquidity: boolean };
-
-export type PreviewInfoOutput = { amount: BN; has_liquidity: boolean };
 
 export type IdentityInput = Enum<{
   Address: AddressInput;
@@ -61,52 +120,78 @@ export type IdentityOutput = Enum<{
 
 interface ExchangeContractAbiInterface extends Interface {
   functions: {
-    get_pool_info: FunctionFragment;
-    get_add_liquidity_token_amount: FunctionFragment;
     add_liquidity: FunctionFragment;
+    cache_vault_fees: FunctionFragment;
+    expand_twap_buffer: FunctionFragment;
+    get_fee_info: FunctionFragment;
+    get_observation: FunctionFragment;
+    get_pool_info: FunctionFragment;
+    get_tokens: FunctionFragment;
+    get_twap_info: FunctionFragment;
+    get_vault_info: FunctionFragment;
+    initialize: FunctionFragment;
     remove_liquidity: FunctionFragment;
     swap: FunctionFragment;
-    get_tokens: FunctionFragment;
-    get_swap_with_minimum: FunctionFragment;
-    get_swap_with_maximum: FunctionFragment;
+    withdraw_protocol_fees: FunctionFragment;
   };
 
-  encodeFunctionData(functionFragment: 'get_pool_info', values?: undefined): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'get_add_liquidity_token_amount',
-    values: [BigNumberish]
-  ): Uint8Array;
   encodeFunctionData(functionFragment: 'add_liquidity', values: [IdentityInput]): Uint8Array;
+  encodeFunctionData(functionFragment: 'cache_vault_fees', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'expand_twap_buffer', values: [BigNumberish]): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_fee_info', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_observation', values: [BigNumberish]): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_pool_info', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_tokens', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_twap_info', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'get_vault_info', values?: undefined): Uint8Array;
+  encodeFunctionData(functionFragment: 'initialize', values: [string]): Uint8Array;
   encodeFunctionData(functionFragment: 'remove_liquidity', values: [IdentityInput]): Uint8Array;
   encodeFunctionData(
     functionFragment: 'swap',
     values: [BigNumberish, BigNumberish, IdentityInput]
   ): Uint8Array;
-  encodeFunctionData(functionFragment: 'get_tokens', values?: undefined): Uint8Array;
-  encodeFunctionData(functionFragment: 'get_swap_with_minimum', values: [BigNumberish]): Uint8Array;
-  encodeFunctionData(functionFragment: 'get_swap_with_maximum', values: [BigNumberish]): Uint8Array;
+  encodeFunctionData(
+    functionFragment: 'withdraw_protocol_fees',
+    values: [IdentityInput]
+  ): Uint8Array;
 
-  decodeFunctionData(functionFragment: 'get_pool_info', data: BytesLike): DecodedValue;
-  decodeFunctionData(
-    functionFragment: 'get_add_liquidity_token_amount',
-    data: BytesLike
-  ): DecodedValue;
   decodeFunctionData(functionFragment: 'add_liquidity', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'cache_vault_fees', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'expand_twap_buffer', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_fee_info', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_observation', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_pool_info', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_tokens', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_twap_info', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'get_vault_info', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'initialize', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'remove_liquidity', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'swap', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'get_tokens', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'get_swap_with_minimum', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'get_swap_with_maximum', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'withdraw_protocol_fees', data: BytesLike): DecodedValue;
 }
 
 export class ExchangeContractAbi extends Contract {
   interface: ExchangeContractAbiInterface;
   functions: {
+    add_liquidity: InvokeFunction<[recipient: IdentityInput], BN>;
+
+    cache_vault_fees: InvokeFunction<[], void>;
+
+    expand_twap_buffer: InvokeFunction<[new_total_slots: BigNumberish], void>;
+
+    get_fee_info: InvokeFunction<[], FeeInfoOutput>;
+
+    get_observation: InvokeFunction<[slot: BigNumberish], ObservationOutput>;
+
     get_pool_info: InvokeFunction<[], PoolInfoOutput>;
 
-    get_add_liquidity_token_amount: InvokeFunction<[token_0_amount: BigNumberish], BN>;
+    get_tokens: InvokeFunction<[], [string, string]>;
 
-    add_liquidity: InvokeFunction<[recipient: IdentityInput], BN>;
+    get_twap_info: InvokeFunction<[], TWAPInfoOutput>;
+
+    get_vault_info: InvokeFunction<[], VaultInfoOutput>;
+
+    initialize: InvokeFunction<[new_vault: string], void>;
 
     remove_liquidity: InvokeFunction<[recipient: IdentityInput], RemoveLiquidityInfoOutput>;
 
@@ -115,10 +200,6 @@ export class ExchangeContractAbi extends Contract {
       void
     >;
 
-    get_tokens: InvokeFunction<[], [string, string]>;
-
-    get_swap_with_minimum: InvokeFunction<[amount: BigNumberish], PreviewInfoOutput>;
-
-    get_swap_with_maximum: InvokeFunction<[amount: BigNumberish], PreviewInfoOutput>;
+    withdraw_protocol_fees: InvokeFunction<[recipient: IdentityInput], [BN, BN]>;
   };
 }

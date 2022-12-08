@@ -40,7 +40,15 @@ export async function initializePool(
     throw new Error('Insufficient Tokens');
   }
 
-  process.stdout.write('Initialize pool\n');
+  const startPoolInfo = await exchangeContract.functions.get_pool_info().get();
+  console.log(startPoolInfo.value)
+
+  if (startPoolInfo.value.lp_token_supply.gt(0)) {
+    console.log('Pool already has liquidity, skipping');
+    return
+  }
+
+  console.log('Initialize pool');
 
   const addLiq = await routerContract
     .multiCall([
@@ -74,7 +82,7 @@ export async function initializePool(
   const poolInfo = await exchangeContract.functions.get_pool_info().get();
   console.log(poolInfo.value);
 
-  // Do a test swap
+  console.log('Running test swap');
 
   // const result = await routerContract.functions.null(
   const result = await routerContract.functions.swap_exact_input(

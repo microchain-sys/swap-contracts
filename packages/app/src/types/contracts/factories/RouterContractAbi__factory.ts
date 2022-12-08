@@ -2,391 +2,648 @@
 /* tslint:disable */
 /* eslint-disable */
 
-import type { Provider, Wallet, AbstractAddress } from 'fuels';
+import type { Provider, BaseWalletLocked, AbstractAddress } from 'fuels';
 import { Interface, Contract } from 'fuels';
 import type { RouterContractAbi, RouterContractAbiInterface } from '../RouterContractAbi';
-const _abi = [
-  {
-    type: 'function',
-    name: 'add_liquidity',
-    inputs: [
-      {
-        type: 'b256',
-        name: 'pool',
-      },
-      {
-        type: 'u64',
-        name: 'amount_a_desired',
-      },
-      {
-        type: 'u64',
-        name: 'amount_b_desired',
-      },
-      {
-        type: 'u64',
-        name: 'amount_a_min',
-      },
-      {
-        type: 'u64',
-        name: 'amount_b_min',
-      },
-      {
-        type: 'enum Identity',
-        name: 'recipient',
-        components: [
-          {
-            type: 'struct Address',
-            name: 'Address',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-          {
-            type: 'struct ContractId',
-            name: 'ContractId',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct AddLiquidityOutput',
+const _abi = {
+  types: [
+    {
+      typeId: 0,
+      type: '()',
+      components: [],
+      typeParameters: null,
+    },
+    {
+      typeId: 1,
+      type: 'b256',
+      components: null,
+      typeParameters: null,
+    },
+    {
+      typeId: 2,
+      type: 'enum Error',
+      components: [
+        {
+          name: 'InsufficentReserves',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'InsufficentAmount',
+          type: 0,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 3,
+      type: 'enum Error',
+      components: [
+        {
+          name: 'InsufficentOutput',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'ExcessiveInput',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'InsufficentAAmount',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'InsufficentBAmount',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'InvalidToken',
+          type: 0,
+          typeArguments: null,
+        },
+        {
+          name: 'InvalidInput',
+          type: 0,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 4,
+      type: 'enum Identity',
+      components: [
+        {
+          name: 'Address',
+          type: 8,
+          typeArguments: null,
+        },
+        {
+          name: 'ContractId',
+          type: 9,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 5,
+      type: 'generic T',
+      components: null,
+      typeParameters: null,
+    },
+    {
+      typeId: 6,
+      type: 'raw untyped ptr',
+      components: null,
+      typeParameters: null,
+    },
+    {
+      typeId: 7,
+      type: 'struct AddLiquidityOutput',
+      components: [
+        {
+          name: 'amount_a',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_b',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'liquidity',
+          type: 13,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 8,
+      type: 'struct Address',
+      components: [
+        {
+          name: 'value',
+          type: 1,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 9,
+      type: 'struct ContractId',
+      components: [
+        {
+          name: 'value',
+          type: 1,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 10,
+      type: 'struct RawVec',
+      components: [
+        {
+          name: 'ptr',
+          type: 6,
+          typeArguments: null,
+        },
+        {
+          name: 'cap',
+          type: 13,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: [5],
+    },
+    {
+      typeId: 11,
+      type: 'struct SwapOutput',
+      components: [
+        {
+          name: 'input_amount',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'output_amount',
+          type: 13,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+    {
+      typeId: 12,
+      type: 'struct Vec',
+      components: [
+        {
+          name: 'buf',
+          type: 10,
+          typeArguments: [
+            {
+              name: '',
+              type: 5,
+              typeArguments: null,
+            },
+          ],
+        },
+        {
+          name: 'len',
+          type: 13,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: [5],
+    },
+    {
+      typeId: 13,
+      type: 'u64',
+      components: null,
+      typeParameters: null,
+    },
+  ],
+  functions: [
+    {
+      inputs: [
+        {
+          name: 'pool',
+          type: 1,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_a_desired',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_b_desired',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_a_min',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_b_min',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'recipient',
+          type: 4,
+          typeArguments: null,
+        },
+      ],
+      name: 'add_liquidity',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'u64',
-            name: 'amount_a',
-          },
-          {
-            type: 'u64',
-            name: 'amount_b',
-          },
-          {
-            type: 'u64',
-            name: 'liquidity',
-          },
-        ],
+        type: 7,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'swap_exact_input',
-    inputs: [
-      {
-        type: 'b256',
-        name: 'pool',
-      },
-      {
-        type: 'u64',
-        name: 'min_amount_out',
-      },
-      {
-        type: 'enum Identity',
-        name: 'recipient',
-        components: [
-          {
-            type: 'struct Address',
-            name: 'Address',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-          {
-            type: 'struct ContractId',
-            name: 'ContractId',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct SwapOutput',
+    },
+    {
+      inputs: [],
+      name: 'null',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'u64',
-            name: 'input_amount',
-          },
-          {
-            type: 'u64',
-            name: 'output_amount',
-          },
-        ],
+        type: 0,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'swap_exact_output',
-    inputs: [
-      {
-        type: 'b256',
-        name: 'pool',
-      },
-      {
-        type: 'u64',
-        name: 'amount_out',
-      },
-      {
-        type: 'u64',
-        name: 'max_amount_in',
-      },
-      {
-        type: 'enum Identity',
-        name: 'recipient',
-        components: [
-          {
-            type: 'struct Address',
-            name: 'Address',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-          {
-            type: 'struct ContractId',
-            name: 'ContractId',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct SwapOutput',
+    },
+    {
+      inputs: [
+        {
+          name: 'pool',
+          type: 1,
+          typeArguments: null,
+        },
+        {
+          name: 'min_amount_out',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'recipient',
+          type: 4,
+          typeArguments: null,
+        },
+      ],
+      name: 'swap_exact_input',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'u64',
-            name: 'input_amount',
-          },
-          {
-            type: 'u64',
-            name: 'output_amount',
-          },
-        ],
+        type: 11,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'swap_exact_input_multihop',
-    inputs: [
-      {
-        type: 'struct Vec',
-        name: 'pools',
-        typeArguments: [
-          {
-            type: 'b256',
-            name: '',
-          },
-        ],
-        components: [
-          {
-            type: 'struct RawVec',
-            name: 'buf',
-            typeArguments: [
-              {
-                type: 'b256',
-                name: '',
-              },
-            ],
-            components: [
-              {
-                type: 'u64',
-                name: 'ptr',
-              },
-              {
-                type: 'u64',
-                name: 'cap',
-              },
-            ],
-          },
-          {
-            type: 'u64',
-            name: 'len',
-          },
-        ],
-      },
-      {
-        type: 'u64',
-        name: 'min_amount_out',
-      },
-      {
-        type: 'enum Identity',
-        name: 'recipient',
-        components: [
-          {
-            type: 'struct Address',
-            name: 'Address',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-          {
-            type: 'struct ContractId',
-            name: 'ContractId',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct SwapOutput',
+    },
+    {
+      inputs: [
+        {
+          name: 'pools',
+          type: 12,
+          typeArguments: [
+            {
+              name: '',
+              type: 1,
+              typeArguments: null,
+            },
+          ],
+        },
+        {
+          name: 'min_amount_out',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'recipient',
+          type: 4,
+          typeArguments: null,
+        },
+      ],
+      name: 'swap_exact_input_multihop',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'u64',
-            name: 'input_amount',
-          },
-          {
-            type: 'u64',
-            name: 'output_amount',
-          },
-        ],
+        type: 11,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'swap_exact_output_multihop',
-    inputs: [
-      {
-        type: 'struct Vec',
-        name: 'pools',
-        typeArguments: [
-          {
-            type: 'b256',
-            name: '',
-          },
-        ],
-        components: [
-          {
-            type: 'struct RawVec',
-            name: 'buf',
-            typeArguments: [
-              {
-                type: 'b256',
-                name: '',
-              },
-            ],
-            components: [
-              {
-                type: 'u64',
-                name: 'ptr',
-              },
-              {
-                type: 'u64',
-                name: 'cap',
-              },
-            ],
-          },
-          {
-            type: 'u64',
-            name: 'len',
-          },
-        ],
-      },
-      {
-        type: 'u64',
-        name: 'amount_out',
-      },
-      {
-        type: 'u64',
-        name: 'max_amount_in',
-      },
-      {
-        type: 'enum Identity',
-        name: 'recipient',
-        components: [
-          {
-            type: 'struct Address',
-            name: 'Address',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-          {
-            type: 'struct ContractId',
-            name: 'ContractId',
-            components: [
-              {
-                type: 'b256',
-                name: 'value',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct SwapOutput',
+    },
+    {
+      inputs: [
+        {
+          name: 'pool',
+          type: 1,
+          typeArguments: null,
+        },
+        {
+          name: 'amount_out',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'max_amount_in',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'recipient',
+          type: 4,
+          typeArguments: null,
+        },
+      ],
+      name: 'swap_exact_output',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'u64',
-            name: 'input_amount',
-          },
-          {
-            type: 'u64',
-            name: 'output_amount',
-          },
-        ],
+        type: 11,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'null',
-    inputs: [],
-    outputs: [
-      {
-        type: '()',
+    },
+    {
+      inputs: [
+        {
+          name: 'pools',
+          type: 12,
+          typeArguments: [
+            {
+              name: '',
+              type: 1,
+              typeArguments: null,
+            },
+          ],
+        },
+        {
+          name: 'amount_out',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'max_amount_in',
+          type: 13,
+          typeArguments: null,
+        },
+        {
+          name: 'recipient',
+          type: 4,
+          typeArguments: null,
+        },
+      ],
+      name: 'swap_exact_output_multihop',
+      output: {
         name: '',
-        components: [],
+        type: 11,
+        typeArguments: null,
       },
-    ],
-  },
-];
+    },
+  ],
+  loggedTypes: [
+    {
+      logId: 0,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 1,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 2,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 3,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 4,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 5,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 6,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 7,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 8,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 9,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 10,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 11,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 12,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 13,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 14,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 15,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 16,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 17,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 18,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 19,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 20,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 21,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 22,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 23,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 24,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 25,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 26,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 27,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 28,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 29,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 30,
+      loggedType: {
+        name: '',
+        type: 2,
+        typeArguments: [],
+      },
+    },
+    {
+      logId: 31,
+      loggedType: {
+        name: '',
+        type: 3,
+        typeArguments: [],
+      },
+    },
+  ],
+};
 
 export class RouterContractAbi__factory {
   static readonly abi = _abi;
@@ -395,7 +652,7 @@ export class RouterContractAbi__factory {
   }
   static connect(
     id: string | AbstractAddress,
-    walletOrProvider: Wallet | Provider
+    walletOrProvider: BaseWalletLocked | Provider
   ): RouterContractAbi {
     return new Contract(id, _abi, walletOrProvider) as unknown as RouterContractAbi;
   }

@@ -2,72 +2,75 @@
 /* tslint:disable */
 /* eslint-disable */
 
-import type { Provider, Wallet, AbstractAddress } from 'fuels';
+import type { Provider, BaseWalletLocked, AbstractAddress } from 'fuels';
 import { Interface, Contract } from 'fuels';
 import type { SwayswapContractAbi, SwayswapContractAbiInterface } from '../SwayswapContractAbi';
-const _abi = [
-  {
-    type: 'function',
-    name: 'add_exchange_contract',
-    inputs: [
-      {
-        type: 'struct ContractId',
-        name: 'token_id',
-        components: [
-          {
-            type: 'b256',
-            name: 'value',
-          },
-        ],
-      },
-      {
-        type: 'struct ContractId',
-        name: 'exchange_id',
-        components: [
-          {
-            type: 'b256',
-            name: 'value',
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: '()',
+const _abi = {
+  types: [
+    {
+      typeId: 0,
+      type: '()',
+      components: [],
+      typeParameters: null,
+    },
+    {
+      typeId: 1,
+      type: 'b256',
+      components: null,
+      typeParameters: null,
+    },
+    {
+      typeId: 2,
+      type: 'struct ContractId',
+      components: [
+        {
+          name: 'value',
+          type: 1,
+          typeArguments: null,
+        },
+      ],
+      typeParameters: null,
+    },
+  ],
+  functions: [
+    {
+      inputs: [
+        {
+          name: 'token_id',
+          type: 2,
+          typeArguments: null,
+        },
+        {
+          name: 'exchange_id',
+          type: 2,
+          typeArguments: null,
+        },
+      ],
+      name: 'add_exchange_contract',
+      output: {
         name: '',
-        components: [],
+        type: 0,
+        typeArguments: null,
       },
-    ],
-  },
-  {
-    type: 'function',
-    name: 'get_exchange_contract',
-    inputs: [
-      {
-        type: 'struct ContractId',
-        name: 'token_id',
-        components: [
-          {
-            type: 'b256',
-            name: 'value',
-          },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        type: 'struct ContractId',
+    },
+    {
+      inputs: [
+        {
+          name: 'token_id',
+          type: 2,
+          typeArguments: null,
+        },
+      ],
+      name: 'get_exchange_contract',
+      output: {
         name: '',
-        components: [
-          {
-            type: 'b256',
-            name: 'value',
-          },
-        ],
+        type: 2,
+        typeArguments: null,
       },
-    ],
-  },
-];
+    },
+  ],
+  loggedTypes: [],
+};
 
 export class SwayswapContractAbi__factory {
   static readonly abi = _abi;
@@ -76,7 +79,7 @@ export class SwayswapContractAbi__factory {
   }
   static connect(
     id: string | AbstractAddress,
-    walletOrProvider: Wallet | Provider
+    walletOrProvider: BaseWalletLocked | Provider
   ): SwayswapContractAbi {
     return new Contract(id, _abi, walletOrProvider) as unknown as SwayswapContractAbi;
   }

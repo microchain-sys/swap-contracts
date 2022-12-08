@@ -8,7 +8,7 @@ export async function deployContracts(config: Config) {
   const wallet = await getWalletInstance();
   const contracts: Array<ContractDeployed> = [];
 
-  console.log('Using wallet', wallet.address.toAddress());
+  console.log('Using wallet', wallet.address);
 
   for (const { name, path, options } of config.contracts) {
     let contractOptions: DeployContractOptions | undefined;

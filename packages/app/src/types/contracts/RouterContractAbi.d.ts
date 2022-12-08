@@ -42,9 +42,9 @@ export type SwapOutputInput = {
 
 export type SwapOutputOutput = { input_amount: BN; output_amount: BN };
 
-export type RawVecInput = { ptr: BigNumberish; cap: BigNumberish };
+export type RawVecInput = { ptr: any; cap: BigNumberish };
 
-export type RawVecOutput = { ptr: BN; cap: BN };
+export type RawVecOutput = { ptr: any; cap: BN };
 
 export type VecInput = { buf: RawVecInput; len: BigNumberish };
 
@@ -63,41 +63,41 @@ export type IdentityOutput = Enum<{
 interface RouterContractAbiInterface extends Interface {
   functions: {
     add_liquidity: FunctionFragment;
-    swap_exact_input: FunctionFragment;
-    swap_exact_output: FunctionFragment;
-    swap_exact_input_multihop: FunctionFragment;
-    swap_exact_output_multihop: FunctionFragment;
     null: FunctionFragment;
+    swap_exact_input: FunctionFragment;
+    swap_exact_input_multihop: FunctionFragment;
+    swap_exact_output: FunctionFragment;
+    swap_exact_output_multihop: FunctionFragment;
   };
 
   encodeFunctionData(
     functionFragment: 'add_liquidity',
     values: [string, BigNumberish, BigNumberish, BigNumberish, BigNumberish, IdentityInput]
   ): Uint8Array;
+  encodeFunctionData(functionFragment: 'null', values?: undefined): Uint8Array;
   encodeFunctionData(
     functionFragment: 'swap_exact_input',
     values: [string, BigNumberish, IdentityInput]
-  ): Uint8Array;
-  encodeFunctionData(
-    functionFragment: 'swap_exact_output',
-    values: [string, BigNumberish, BigNumberish, IdentityInput]
   ): Uint8Array;
   encodeFunctionData(
     functionFragment: 'swap_exact_input_multihop',
     values: [VecInput, BigNumberish, IdentityInput]
   ): Uint8Array;
   encodeFunctionData(
+    functionFragment: 'swap_exact_output',
+    values: [string, BigNumberish, BigNumberish, IdentityInput]
+  ): Uint8Array;
+  encodeFunctionData(
     functionFragment: 'swap_exact_output_multihop',
     values: [VecInput, BigNumberish, BigNumberish, IdentityInput]
   ): Uint8Array;
-  encodeFunctionData(functionFragment: 'null', values?: undefined): Uint8Array;
 
   decodeFunctionData(functionFragment: 'add_liquidity', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_exact_input', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_exact_output', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_exact_input_multihop', data: BytesLike): DecodedValue;
-  decodeFunctionData(functionFragment: 'swap_exact_output_multihop', data: BytesLike): DecodedValue;
   decodeFunctionData(functionFragment: 'null', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'swap_exact_input', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'swap_exact_input_multihop', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'swap_exact_output', data: BytesLike): DecodedValue;
+  decodeFunctionData(functionFragment: 'swap_exact_output_multihop', data: BytesLike): DecodedValue;
 }
 
 export class RouterContractAbi extends Contract {
@@ -115,8 +115,15 @@ export class RouterContractAbi extends Contract {
       AddLiquidityOutputOutput
     >;
 
+    null: InvokeFunction<[], void>;
+
     swap_exact_input: InvokeFunction<
       [pool: string, min_amount_out: BigNumberish, recipient: IdentityInput],
+      SwapOutputOutput
+    >;
+
+    swap_exact_input_multihop: InvokeFunction<
+      [pools: VecInput, min_amount_out: BigNumberish, recipient: IdentityInput],
       SwapOutputOutput
     >;
 
@@ -130,11 +137,6 @@ export class RouterContractAbi extends Contract {
       SwapOutputOutput
     >;
 
-    swap_exact_input_multihop: InvokeFunction<
-      [pools: VecInput, min_amount_out: BigNumberish, recipient: IdentityInput],
-      SwapOutputOutput
-    >;
-
     swap_exact_output_multihop: InvokeFunction<
       [
         pools: VecInput,
@@ -144,7 +146,5 @@ export class RouterContractAbi extends Contract {
       ],
       SwapOutputOutput
     >;
-
-    null: InvokeFunction<[], void>;
   };
 }
