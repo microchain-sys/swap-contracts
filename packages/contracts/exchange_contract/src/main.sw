@@ -1,5 +1,7 @@
 contract;
 
+dep lib;
+
 use std::{
     auth::msg_sender,
     assert::assert,
@@ -34,6 +36,7 @@ use exchange_abi::{
 };
 use microchain_helpers::{identity_to_b256};
 use vault_abi::Vault;
+use lib::sqrt_by_digit;
 
 enum Error {
     AlreadyInitialized: (),
@@ -222,28 +225,6 @@ fn cache_vault_fees(vault: b256) {
         change_rate: vault_fees.change_rate,
         update_time: timestamp(),
     };
-}
-
-fn sqrt_by_digit(n: U128) -> U128 {
-    let mut x = n;
-    let mut c = U128::min();
-    let mut d = U128::from((0, 1)) << U128::bits() - 2;
-
-    while d > n {
-        d = d >> 2;
-    }
-
-    while d != U128::min() {
-        if x > c + d || x == c + d { // TODO: gte
-            x = x - (c + d);
-            c = (c >> 1) + d;
-        } else {
-            c = c >> 1;
-        }
-        d  = d >> 2;
-    }
-
-    c
 }
 
 // ////////////////////////////////////////
