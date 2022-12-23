@@ -28,7 +28,7 @@ export default createConfig({
     {
       name: 'REGISTRY_CONTRACT_ID',
       path: './packages/contracts/registry_contract',
-      options: getDeployOptions(),
+      options: getDeployOptions({ salt: saltBase }),
     },
     {
       name: 'ROUTER_CONTRACT_ID',
