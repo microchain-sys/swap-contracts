@@ -7,7 +7,6 @@ use std::{
     option::Option,
     storage::StorageMap,
 };
-use core::num::*;
 use exchange_abi::Exchange;
 
 enum Error {

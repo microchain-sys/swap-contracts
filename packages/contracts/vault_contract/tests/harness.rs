@@ -1,6 +1,3 @@
-use std::{
-    time::{SystemTime, UNIX_EPOCH},
-};
 use fuels::{
     prelude::*,
     fuels_abigen::abigen,
@@ -16,7 +13,6 @@ abigen!(TestVault, "./out/debug/vault_contract-abi.json");
 
 struct Fixture {
     wallet: WalletUnlocked,
-    vault_contract_id: Bech32ContractId,
     vault_instance: TestVault,
 }
 
@@ -37,11 +33,10 @@ async fn setup() -> Fixture {
     .await
     .unwrap();
 
-    let vault_instance = TestVault::new(vault_contract_id.clone(), wallet.clone());
+    let vault_instance = TestVault::new(vault_contract_id, wallet.clone());
 
     Fixture {
         wallet: wallet,
-        vault_contract_id: vault_contract_id.clone(),
         vault_instance: vault_instance,
     }
 }

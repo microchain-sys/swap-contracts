@@ -74,7 +74,8 @@ impl Vault for Contract {
         }
     }
 
-    #[storage(read, write)]fn claim_fees(pool: b256) {
+    // Note: can call withdraw_protocol_fees on any contract, but there's no vulnerability to the vault
+    fn claim_fees(pool: b256) {
         let exchange = abi(Exchange, pool);
         exchange.withdraw_protocol_fees(Identity::ContractId(contract_id()));
     }

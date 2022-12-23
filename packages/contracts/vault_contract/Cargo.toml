@@ -6,7 +6,7 @@ name = "tests"
 version = "0.0.0"
 
 [dependencies]
-fuels = { version = "0.31.1", features = ["fuel-core-lib"] }
+fuels = { version = "0.33", features = ["fuel-core-lib"] }
 tokio = { version = "1.15", features = ["rt", "macros"] }
 test_helpers = { path = "../test_helpers" }
 

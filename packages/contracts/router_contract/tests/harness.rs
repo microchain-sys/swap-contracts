@@ -5,6 +5,7 @@ use fuels::{
     signers::WalletUnlocked,
     tx::{AssetId, Bytes32, StorageSlot},
 };
+use test_helpers::{get_wallets};
 
 ///////////////////////////////
 // Load the Router Script ABI abi
@@ -46,13 +47,8 @@ struct Fixture {
 }
 
 async fn setup() -> Fixture {
-    let num_wallets = 1;
-    let num_coins = 1;
-    let amount = to_9_decimal(10000);
-    let config = WalletsConfig::new(Some(num_wallets), Some(num_coins), Some(amount));
-
-    let mut wallets = launch_custom_provider_and_get_wallets(config, None).await;
-    let wallet = wallets.pop().unwrap();
+    let wallets = get_wallets().await;
+    let wallet = wallets.get(0).unwrap().clone();
 
     //////////////////////////////////////////
     // Setup contracts
