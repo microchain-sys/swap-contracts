@@ -11,7 +11,7 @@ use std::{
     context::*,
     contract_id::ContractId,
     identity::Identity,
-    logging::log,
+    // logging::log,
     revert::revert,
     storage::get,
     token::{burn, mint, transfer},
@@ -49,6 +49,9 @@ enum Error {
     MustBeCalledByVault: (),
     TWAPOutOfRange: (),
 }
+
+// Disable logging
+fn log<T>(event: T) {}
 
 ////////////////////////////////////////
 // Constants
