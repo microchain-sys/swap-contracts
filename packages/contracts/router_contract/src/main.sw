@@ -54,6 +54,8 @@ struct SwapOutput {
 abi Router {
     fn add_liquidity(pool: b256, amount_0_desired: u64, amount_1_desired: u64, amount_0_min: u64, amount_1_min: u64, recipient: Identity) -> LiquidityOutput;
 
+    fn remove_liquidity(amount_0_min: u64, amount_1_min: u64, recipient: Identity) -> LiquidityOutput;
+
     fn swap_exact_input(pool: b256, min_amount_out: u64, recipient: Identity) -> SwapOutput;
 
     fn swap_exact_output(pool: b256, amount_out: u64, max_amount_in: u64, recipient: Identity) -> SwapOutput;
@@ -120,6 +122,25 @@ impl Router for Contract {
             amount_0: amount_0,
             amount_1: amount_1,
             liquidity: liquidity,
+        }
+    }
+
+    fn remove_liquidity(amount_0_min: u64, amount_1_min: u64, recipient: Identity) -> LiquidityOutput {
+        let input_asset: b256 = msg_asset_id().into();
+        let exchange = abi(Exchange, input_asset);
+
+        let result = exchange.remove_liquidity {
+            asset_id: input_asset,
+            coins: msg_amount(),
+        }(recipient);
+
+        require(result.token_0_amount >= amount_0_min, Error::InsufficentOutput);
+        require(result.token_1_amount >= amount_1_min, Error::InsufficentOutput);
+
+        LiquidityOutput {
+            amount_0: result.token_0_amount,
+            amount_1: result.token_1_amount,
+            liquidity: msg_amount(),
         }
     }
 

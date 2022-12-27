@@ -351,6 +351,54 @@ async fn add_liquidity() {
 }
 
 #[tokio::test]
+async fn remove_liquidity() {
+    let fixture = setup().await;
+
+    let token_0_amount = to_9_decimal(1);
+    let token_1_amount = to_9_decimal(4);
+    let expected_liquidity = to_9_decimal(2) - MINIMUM_LIQUIDITY;
+
+    add_pool_a_liquidity(&fixture, token_0_amount, token_1_amount)
+        .await;
+
+    let lp_tokens = fixture.wallet.get_asset_balance(&fixture.exchange_a_asset_id).await.unwrap();
+    assert_eq!(lp_tokens, expected_liquidity);
+
+    // Remove liquidity
+
+    let token_0_starting_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_starting_balance = fixture.wallet.get_asset_balance(&fixture.token_a_asset_id).await.unwrap();
+
+    let receipt = fixture.router_instance
+        .methods()
+        .remove_liquidity(0, 0, Identity::Address(fixture.wallet.address().into()))
+        .call_params(CallParameters::new(
+            Some(expected_liquidity),
+            Some(fixture.exchange_a_asset_id.clone()),
+            None
+        ))
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .set_contracts(&[fixture.exchange_a_contract_id.clone()])
+        .append_variable_outputs(2)
+        .call()
+        .await
+        .unwrap();
+
+    let lp_balance = fixture.wallet.get_asset_balance(&fixture.exchange_a_asset_id.clone()).await.unwrap();
+    assert_eq!(lp_balance, 0);
+
+    let token_0_end_balance = fixture.wallet.get_asset_balance(&BASE_ASSET_ID).await.unwrap();
+    let token_1_end_balance = fixture.wallet.get_asset_balance(&fixture.token_a_asset_id).await.unwrap();
+
+    assert_eq!(token_0_end_balance, token_0_starting_balance + token_0_amount - 500);
+    assert_eq!(token_1_end_balance, token_1_starting_balance + token_1_amount - 2000);
+}
+
+#[tokio::test]
 async fn swap_exact_input_0() {
     let fixture = setup().await;
 
