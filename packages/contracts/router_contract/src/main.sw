@@ -34,15 +34,15 @@ use microchain_helpers::{get_input_price, get_output_price, quote};
 enum Error {
     InsufficentOutput: (),
     ExcessiveInput: (),
-    InsufficentAAmount: (),
-    InsufficentBAmount: (),
+    InsufficentToken0: (),
+    InsufficentToken1: (),
     InvalidToken: (),
     InvalidInput: (),
 }
 
-struct AddLiquidityOutput {
-    amount_a: u64,
-    amount_b: u64,
+struct LiquidityOutput {
+    amount_0: u64,
+    amount_1: u64,
     liquidity: u64,
 }
 
@@ -52,7 +52,7 @@ struct SwapOutput {
 }
 
 abi Router {
-    fn add_liquidity(pool: b256, amount_a_desired: u64, amount_b_desired: u64, amount_a_min: u64, amount_b_min: u64, recipient: Identity) -> AddLiquidityOutput;
+    fn add_liquidity(pool: b256, amount_0_desired: u64, amount_1_desired: u64, amount_0_min: u64, amount_1_min: u64, recipient: Identity) -> LiquidityOutput;
 
     fn swap_exact_input(pool: b256, min_amount_out: u64, recipient: Identity) -> SwapOutput;
 
@@ -69,43 +69,40 @@ abi Router {
 impl Router for Contract {
     fn add_liquidity(
         pool: b256,
-        amount_a_desired: u64,
-        amount_b_desired: u64,
-        amount_a_min: u64,
-        amount_b_min: u64,
+        amount_0_desired: u64,
+        amount_1_desired: u64,
+        amount_0_min: u64,
+        amount_1_min: u64,
         recipient: Identity,
-    ) -> AddLiquidityOutput {
+    ) -> LiquidityOutput {
         let exchange = abi(Exchange, pool);
         let (token0, token1) = exchange.get_tokens();
         let pool_info = exchange.get_pool_info();
         let sender_identity = msg_sender().unwrap(); // Only used for returning "change"
-        // TODO: We assume tokenA == token0 & tokenB == token1, but we should check
-        let (reserve_a, reserve_b) = (pool_info.token_0_reserve, pool_info.token_1_reserve);
-
-        let mut amount_a = 0;
-        let mut amount_b = 0;
+        let mut amount_0 = 0;
+        let mut amount_1 = 0;
         if (pool_info.token_0_reserve == 0
             && pool_info.token_1_reserve == 0)
         {
-            amount_a = amount_a_desired;
-            amount_b = amount_b_desired;
+            amount_0 = amount_0_desired;
+            amount_1 = amount_1_desired;
         } else {
-            let amount_b_optional = quote(amount_a_desired, reserve_a, reserve_b);
-            if (amount_b_optional <= amount_b_desired) {
-                require(amount_b_optional >= amount_b_min, Error::InsufficentBAmount());
-                amount_a = amount_a_desired;
-                amount_b = amount_b_optional;
+            let amount_1_optional = quote(amount_0_desired, pool_info.token_0_reserve, pool_info.token_1_reserve);
+            if (amount_1_optional <= amount_1_desired) {
+                require(amount_1_optional >= amount_1_min, Error::InsufficentToken1());
+                amount_0 = amount_0_desired;
+                amount_1 = amount_1_optional;
             } else {
-                let amount_a_optional = quote(amount_b_desired, reserve_b, reserve_a);
-                assert(amount_a_optional <= amount_a_desired);
-                require(amount_a_optional >= amount_a_min, Error::InsufficentAAmount());
-                amount_a = amount_a_optional;
-                amount_b = amount_b_desired;
+                let amount_0_optional = quote(amount_1_desired, pool_info.token_1_reserve, pool_info.token_0_reserve);
+                assert(amount_0_optional <= amount_0_desired);
+                require(amount_0_optional >= amount_0_min, Error::InsufficentToken0());
+                amount_0 = amount_0_optional;
+                amount_1 = amount_1_desired;
             }
         }
 
-        force_transfer_to_contract(amount_a, ContractId::from(token0), ContractId::from(pool));
-        force_transfer_to_contract(amount_b, ContractId::from(token1), ContractId::from(pool));
+        force_transfer_to_contract(amount_0, ContractId::from(token0), ContractId::from(pool));
+        force_transfer_to_contract(amount_1, ContractId::from(token1), ContractId::from(pool));
 
         let liquidity = exchange.add_liquidity(recipient);
 
@@ -113,15 +110,15 @@ impl Router for Contract {
         let current_token_1_amount = this_balance(ContractId::from(token1));
 
         if (current_token_0_amount > 0) {
-            transfer(amount_a, ContractId::from(token0), sender_identity);
+            transfer(current_token_0_amount, ContractId::from(token0), sender_identity);
         }
         if (current_token_1_amount > 0) {
-            transfer(amount_b, ContractId::from(token1), sender_identity);
+            transfer(current_token_1_amount, ContractId::from(token1), sender_identity);
         }
 
-        AddLiquidityOutput {
-            amount_a: amount_a,
-            amount_b: amount_b,
+        LiquidityOutput {
+            amount_0: amount_0,
+            amount_1: amount_1,
             liquidity: liquidity,
         }
     }

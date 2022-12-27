@@ -301,21 +301,22 @@ async fn add_liquidity() {
     let _receipts = fixture.wallet
         .force_transfer_to_contract(
             &fixture.router_contract_id,
-            token_0_amount,
+            token_0_amount + 1, // Add 1 so that there's change to return
             BASE_ASSET_ID,
             TxParameters::default()
         )
         .await;
-    let _receipts = fixture.wallet
+
+        let _receipts = fixture.wallet
         .force_transfer_to_contract(
             &fixture.router_contract_id,
-            token_1_amount,
+            token_1_amount + 1, // Add 1 so that there's change to return
             fixture.token_a_asset_id.clone(),
             TxParameters::default()
         )
         .await;
 
-    let receipt = fixture.router_instance
+    let result = fixture.router_instance
         .methods()
         .add_liquidity(
             Bits256(fixture.exchange_a_contract_id.hash().into()),
@@ -340,18 +341,10 @@ async fn add_liquidity() {
         .call()
         .await
         .unwrap();
-    //   .to.emit(token0, 'Transfer')
-    //   .withArgs(wallet.address, pair.address, token_0_amount)
-    //   .to.emit(token1, 'Transfer')
-    //   .withArgs(wallet.address, pair.address, token_1_amount)
-    //   .to.emit(pair, 'Transfer')
-    //   .withArgs(AddressZero, AddressZero, MINIMUM_LIQUIDITY)
-    //   .to.emit(pair, 'Transfer')
-    //   .withArgs(AddressZero, wallet.address, expected_liquidity.sub(MINIMUM_LIQUIDITY))
-    //   .to.emit(pair, 'Sync')
-    //   .withArgs(token_0_amount, token_1_amount)
-    //   .to.emit(pair, 'Mint')
-    //   .withArgs(router.address, token_0_amount, token_1_amount)
+
+    assert_eq!(result.value.amount_0, token_0_amount);
+    assert_eq!(result.value.amount_1, token_1_amount);
+    assert_eq!(result.value.liquidity, expected_liquidity - MINIMUM_LIQUIDITY);
 
     let lp_tokens = fixture.wallet.get_asset_balance(&fixture.exchange_a_asset_id).await.unwrap();
     assert_eq!(lp_tokens, expected_liquidity - MINIMUM_LIQUIDITY);
