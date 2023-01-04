@@ -56,11 +56,9 @@ pnpm dev
 
 This section has a brief description of each directory. More details can be found inside each package, by clicking on the links.
 
-- [packages/app](../packages/app/) Frontend SwaySwap application
+- [packages/init-script](../packages/init-script/) Scripts for initializing deployed contracts
 - [packages/contracts](../packages/contracts/) 🌴 Sway contracts
 - [packages/scripts](../packages/scripts/) SwaySwap scripts CLI
-- [packages/test-utils](../packages/test-utils/) Test utilities for Jest
-- [packages/config](../packages/config/) Build configurations
 - [docker](../docker/) Network configurations
 
 ## 🧰 Useful Scripts
