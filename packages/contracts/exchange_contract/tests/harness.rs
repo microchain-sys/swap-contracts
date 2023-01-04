@@ -27,6 +27,8 @@ abigen!(
 );
 abigen!(Vault, "../vault_contract/out/debug/vault_contract-abi.json");
 
+const MINIMUM_LIQUIDITY: u64 = 1000;
+
 struct Fixture {
     wallet: WalletUnlocked,
     token_contract_id: Bech32ContractId,
@@ -43,7 +45,7 @@ fn to_9_decimal(num: u64) -> u64 {
     num * 1_000_000_000
 }
 
-const TESTS_ENABLED: bool = false;
+const LOGS_ENABLED: bool = false;
 
 async fn setup() -> Fixture {
     let wallets = get_wallets().await;
@@ -226,7 +228,12 @@ async fn mint() {
         .await
         .unwrap();
 
-    if TESTS_ENABLED {
+    assert_eq!(response.value, expected_liquidity - MINIMUM_LIQUIDITY);
+
+    let lp_balance = fixture.wallet.get_asset_balance(&fixture.exchange_asset_id).await.unwrap();
+    assert_eq!(lp_balance, expected_liquidity - MINIMUM_LIQUIDITY);
+
+    if LOGS_ENABLED {
         // let liquidity_logs = response.get_logs_with_type::<LiquidityAdded>().unwrap();
         // assert_eq!(liquidity_logs.len(), 2);
 
@@ -260,7 +267,86 @@ async fn mint() {
     assert_eq!(pool_info.value.token_1_reserve, token_1_amount);
     assert_eq!(pool_info.value.lp_token_supply, expected_liquidity);
 
-    // TODO: test non-initialization mints
+    // Add more liquidity
+
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.exchange_contract_id,
+            token_0_amount,
+            BASE_ASSET_ID,
+            TxParameters::default()
+        )
+        .await;
+
+    // Deposit some Token Asset
+    let unbalanced_extra_coins = 10; // Add some extra coins to simulate an unbalanced deposit
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.exchange_contract_id,
+            token_1_amount + unbalanced_extra_coins,
+            fixture.token_asset_id.clone(),
+            TxParameters::default()
+        )
+        .await;
+
+    // Add liquidity for the second time. Keeping the proportion 1:2
+    // It should return the same amount of LP as the amount of ETH deposited
+    let response = fixture.exchange_instance
+        .methods()
+        .add_liquidity(Identity::Address(fixture.wallet.address().into()))
+        .append_variable_outputs(2)
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            None,
+            None,
+            Some(100_000_000),
+        ))
+        .call()
+        .await
+        .unwrap();
+
+    assert_eq!(response.value, expected_liquidity);
+
+    let lp_balance = fixture.wallet.get_asset_balance(&fixture.exchange_asset_id).await.unwrap();
+    assert_eq!(lp_balance, expected_liquidity * 2 - MINIMUM_LIQUIDITY);
+
+    if LOGS_ENABLED {
+        // let liquidity_logs = response.get_logs_with_type::<LiquidityAdded>().unwrap();
+        // assert_eq!(liquidity_logs.len(), 2);
+
+        // let liquidity_event = liquidity_logs.get(0).unwrap();
+        // assert_eq!(liquidity_event.sender, Bits256(fixture.wallet.address().hash().into()));
+        // assert_eq!(liquidity_event.recipient, Bits256([0; 32]));
+        // assert_eq!(liquidity_event.amount_0, 0);
+        // assert_eq!(liquidity_event.amount_1, 0);
+        // assert_eq!(liquidity_event.lp_tokens, 1000);
+
+        // let liquidity_event = liquidity_logs.get(1).unwrap();
+        // assert_eq!(liquidity_event.sender, Bits256(fixture.wallet.address().hash().into()));
+        // assert_eq!(liquidity_event.recipient, Bits256(fixture.wallet.address().hash().into()));
+        // assert_eq!(liquidity_event.amount_0, token_0_amount);
+        // assert_eq!(liquidity_event.amount_1, token_1_amount);
+        // assert_eq!(liquidity_event.lp_tokens, expected_liquidity - 1000);
+
+        // let reserve_logs = response.get_logs_with_type::<UpdateReserves>().unwrap();
+        // assert_eq!(reserve_logs.len(), 1);
+        // let reserve_event = reserve_logs.get(0).unwrap();
+        // assert_eq!(reserve_event.amount_0, 1000000000);
+        // assert_eq!(reserve_event.amount_1, 4000000000);
+    }
+
+    // expect(await pair.balanceOf(wallet.address)).to.eq(expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+    // expect(await token0.balanceOf(pair.address)).to.eq(token0Amount)
+    // expect(await token1.balanceOf(pair.address)).to.eq(token1Amount)
+
+    let pool_info = fixture.exchange_instance.methods().get_pool_info().call().await.unwrap();
+    assert_eq!(pool_info.value.token_0_reserve, token_0_amount * 2);
+    assert_eq!(pool_info.value.token_1_reserve, token_1_amount * 2 + unbalanced_extra_coins);
+    assert_eq!(pool_info.value.lp_token_supply, expected_liquidity * 2);
 }
 
 #[tokio::test]
@@ -384,7 +470,7 @@ async fn swap_token_0() {
         .await
         .unwrap();
 
-    if TESTS_ENABLED {
+    if LOGS_ENABLED {
         // let swap_logs = response.get_logs_with_type::<Swap>().unwrap();
         // assert_eq!(swap_logs.len(), 1);
 
@@ -462,7 +548,7 @@ async fn swap_token_1() {
         .await
         .unwrap();
 
-    if TESTS_ENABLED {
+    if LOGS_ENABLED {
         // let swap_logs = response.get_logs_with_type::<Swap>().unwrap();
         // assert_eq!(swap_logs.len(), 1);
 
@@ -543,7 +629,7 @@ async fn burn() {
         .await
         .unwrap();
 
-    if TESTS_ENABLED {
+    if LOGS_ENABLED {
         // let burn_logs = response.get_logs_with_type::<LiquidityRemoved>().unwrap();
         // assert_eq!(burn_logs.len(), 1);
 
@@ -653,7 +739,7 @@ async fn accrue_protocol_fees() {
     let expected_fee_rate = 10000 - (1000 * (swap_timestamp - set_fee_timestamp));
     let expected_fee_0 = input * expected_fee_rate / 1_000_000;
 
-    if TESTS_ENABLED {
+    if LOGS_ENABLED {
         // let logs = response.get_logs_with_type::<ProtocolFeeCollected>().unwrap();
         // assert_eq!(logs.len(), 1);
         // let fee_event = logs.get(0).unwrap();
@@ -722,7 +808,7 @@ async fn accrue_protocol_fees() {
     let expected_fee_rate = 10000 - (1000 * (swap_timestamp - set_fee_timestamp));
     let expected_fee_1 = input * expected_fee_rate / 1_000_000;
 
-    if TESTS_ENABLED {
+    if LOGS_ENABLED {
         // let logs = response.get_logs_with_type::<ProtocolFeeCollected>().unwrap();
         // assert_eq!(logs.len(), 1);
         // let fee_event = logs.get(0).unwrap();

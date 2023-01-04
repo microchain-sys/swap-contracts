@@ -297,13 +297,15 @@ impl Exchange for Contract {
         let token_1_reserve = storage.token1_reserve;
 
         let (current_token_0_amount, current_token_1_amount) = get_pool_balance();
+        let token_0_sent = current_token_0_amount - token_0_reserve;
+        let token_1_sent = current_token_1_amount - token_1_reserve;
 
-        require(current_token_0_amount > 0 && current_token_1_amount > 0, Error::InsufficentInput);
+        require(token_0_sent > 0 && token_1_sent > 0, Error::InsufficentInput);
 
         let mut minted: u64 = 0;
         if total_liquidity > 0 {
-            let token0_liquidity = current_token_0_amount * total_liquidity / token_0_reserve;
-            let token1_liquidity = current_token_1_amount * total_liquidity / token_1_reserve;
+            let token0_liquidity = token_0_sent * total_liquidity / token_0_reserve;
+            let token1_liquidity = token_1_sent * total_liquidity / token_1_reserve;
 
             minted = if (token0_liquidity < token1_liquidity) {
                 token0_liquidity
@@ -311,7 +313,7 @@ impl Exchange for Contract {
                 token1_liquidity
             };
 
-            store_reserves(token_0_reserve + current_token_0_amount, token_1_reserve + current_token_1_amount, token_0_reserve, token_1_reserve);
+            store_reserves(current_token_0_amount, current_token_1_amount, token_0_reserve, token_1_reserve);
 
             mint(minted);
             storage.lp_token_supply = total_liquidity + minted;
