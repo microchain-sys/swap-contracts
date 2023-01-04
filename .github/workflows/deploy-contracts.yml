@@ -6,7 +6,7 @@ on:
       provider_url:
         description: 'Provider url'
         required: true
-        default: 'https://node.swayswap.io/graphql' 
+        default: 'https://node-beta-2.fuel.network/graphql' 
         type: string
       wallet_secret:
         description: 'Wallet secret used to deploy and provide initial liquidity'
@@ -89,13 +89,13 @@ jobs:
       - name: Initiate token contract and liquidity pool
         if: ${{ github.event.inputs.initiate_supply }}
         run: |
-          pnpm contracts:init-pool
+          pnpm contracts:init
         env:
           NODE_ENV: production
 
-      - name: Commit .env.production
-        if: ${{ github.event.inputs.commit_changes && github.ref != 'refs/heads/master' }}
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: 'chore: update contract ids'
-          add: './packages/app/.env.production'
+      # - name: Commit .env.production
+      #   if: ${{ github.event.inputs.commit_changes && github.ref != 'refs/heads/master' }}
+      #   uses: EndBug/add-and-commit@v9
+      #   with:
+      #     message: 'chore: update contract ids'
+      #     add: './packages/app/.env.production'
