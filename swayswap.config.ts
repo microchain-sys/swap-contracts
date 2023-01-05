@@ -22,7 +22,7 @@ const saltBase = Math.floor(Date.now() / 10000);
 export default createConfig({
   types: {
     artifacts: './packages/contracts/**/out/debug/**-abi.json',
-    output: './packages/app/src/types/contracts',
+    output: './packages/init-script/contracts',
   },
   contracts: [
     {

@@ -294,6 +294,8 @@ async fn add_pool_b_liquidity(fixture: &Fixture, token_0_amount: u64, token_1_am
 async fn add_liquidity() {
     let fixture = setup().await;
 
+    // Add initial liquidity
+
     let token_0_amount = to_9_decimal(1);
     let token_1_amount = to_9_decimal(4);
     let expected_liquidity = to_9_decimal(2);
@@ -307,7 +309,7 @@ async fn add_liquidity() {
         )
         .await;
 
-        let _receipts = fixture.wallet
+    let _receipts = fixture.wallet
         .force_transfer_to_contract(
             &fixture.router_contract_id,
             token_1_amount + 1, // Add 1 so that there's change to return
@@ -348,6 +350,89 @@ async fn add_liquidity() {
 
     let lp_tokens = fixture.wallet.get_asset_balance(&fixture.exchange_a_asset_id).await.unwrap();
     assert_eq!(lp_tokens, expected_liquidity - MINIMUM_LIQUIDITY);
+
+    // Add additional liquidity
+
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.router_contract_id,
+            token_0_amount + 1, // Add 1 so that there's change to return
+            BASE_ASSET_ID,
+            TxParameters::default()
+        )
+        .await;
+
+    let _receipts = fixture.wallet
+        .force_transfer_to_contract(
+            &fixture.router_contract_id,
+            token_1_amount + 1, // Add 1 so that there's change to return
+            fixture.token_a_asset_id.clone(),
+            TxParameters::default()
+        )
+        .await;
+
+    let is_err = fixture.router_instance
+        .methods()
+        .add_liquidity(
+            Bits256(fixture.exchange_a_contract_id.hash().into()),
+            token_0_amount,
+            token_1_amount,
+            token_0_amount + 1,
+            token_1_amount + 1,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            None,
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[fixture.exchange_a_contract_id.clone()])
+        .append_variable_outputs(3)
+        .call()
+        .await
+        .is_err();
+    assert!(is_err, "Should fail if insufficient input");
+
+    let token_0_min = token_0_amount * 99 / 100;
+    let token_1_min = token_1_amount * 99 / 100;
+
+    let result = fixture.router_instance
+        .methods()
+        .add_liquidity(
+            Bits256(fixture.exchange_a_contract_id.hash().into()),
+            token_0_amount,
+            token_1_amount,
+            token_0_min,
+            token_1_min,
+            Identity::Address(fixture.wallet.address().into()),
+        )
+        .tx_params(TxParameters {
+            gas_price: 0,
+            gas_limit: 100_000_000,
+            maturity: 0,
+        })
+        .call_params(CallParameters::new(
+            None,
+            None,
+            Some(100_000_000),
+        ))
+        .set_contracts(&[fixture.exchange_a_contract_id.clone()])
+        .append_variable_outputs(3)
+        .call()
+        .await
+        .unwrap();
+
+    assert_eq!(result.value.amount_0, token_0_amount);
+    assert_eq!(result.value.amount_1, token_1_amount);
+    assert_eq!(result.value.liquidity, expected_liquidity);
+
+    let lp_tokens = fixture.wallet.get_asset_balance(&fixture.exchange_a_asset_id).await.unwrap();
+    assert_eq!(lp_tokens, expected_liquidity * 2 - MINIMUM_LIQUIDITY);
 }
 
 #[tokio::test]

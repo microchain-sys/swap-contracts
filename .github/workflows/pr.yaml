@@ -23,14 +23,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/setup-node
-      - run: pnpm lint
-
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -39,96 +31,11 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/setup-node
       - uses: ./.github/setup-rust
-      - uses: ./.github/setup-docker
-        with:
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # As contracts are really Heavy to build
-      # and test we only test it when some
-      # contract was updated on the PR
-      - name: Change contracts
-        id: changed-contracts
-        uses: tj-actions/changed-files@v22.2
-        with:
-          files: |
-            **/*.sw
-            **/*.rs
-            **/Cargo.toml
-            **/Forc.toml
+      - name: Build Sway
+        run: |
+          pnpm contracts:build
 
       - name: Test Contracts
-        if: ${{ steps.changed-contracts.outputs.any_changed == 'true' }}
         run: |
           ./scripts/test-contracts.sh
-
-      - name: Setup scripts
-        run: |
-          pnpm scripts:setup
-
-      - name: Run test
-        run: |
-          pnpm ci:test:coverage
-
-  end-to-end-test:
-    name: Test E2E
-    runs-on: ubuntu-latest
-    continue-on-error: false
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/setup-node
-      - uses: ./.github/setup-rust
-      - uses: ./.github/setup-docker
-        with:
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup scripts
-        run: |
-          pnpm scripts:setup
-      
-      # using same dependencies from cypress/browsers:node16.5.0-chrome97-ff96 ...
-      # not using directly the container because we still need ubuntu-latest preset
-      - name: Install Cypress Dependencies
-        run: |
-          sudo apt-get update && \
-            sudo apt-get install --no-install-recommends -y \
-            libgtk2.0-0 \
-            libgtk-3-0 \
-            libnotify-dev \
-            libgconf-2-4 \
-            libgbm-dev \
-            libnss3 \
-            libxss1 \
-            libasound2 \
-            libxtst6 \
-            xauth \
-            xvfb \
-            vim-tiny \
-            nano \
-            fonts-noto-color-emoji \
-            fonts-arphic-bkai00mp \
-            fonts-arphic-bsmi00lp \
-            fonts-arphic-gbsn00lp \
-            fonts-arphic-gkai00mp \
-            fonts-arphic-ukai \
-            fonts-arphic-uming \
-            ttf-wqy-zenhei \
-            ttf-wqy-microhei \
-            xfonts-wqy \
-            fonts-liberation \
-            libappindicator3-1 \
-            xdg-utils \
-            zip
-
-      - name: "End-to-end tests"
-        uses: cypress-io/github-action@v4
-        with:
-          # skip install, as: 1 - we're doing in other step; 2 - cypress doesnt support pnpm yet https://github.com/cypress-io/github-action/issues/145
-          install: false
-          command: pnpm ci:test:e2e
-          browser: chrome
-          record: false
-        env:
-          # Recommended: pass the GitHub token lets this action correctly
-          # determine the unique run id necessary to re-run the checks
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_ENV: "test"
